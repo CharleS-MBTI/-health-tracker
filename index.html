@@ -1131,6 +1131,11 @@
             </select>
           </div>
         </div>
+        <!-- Food log quick actions -->
+        <div id="food-log-section" class="hidden">
+          <label class="block text-sm font-medium text-ink/70 mb-2">已记录食物</label>
+          <div id="food-log-list" class="space-y-2 mb-3"></div>
+        </div>
         <div>
           <label class="block text-sm font-medium text-ink/70 mb-2">心得记录</label>
           <textarea id="edit-notes" rows="4" class="w-full bg-white border border-stone rounded-xl px-4 py-3 focus:outline-none focus:border-forest resize-none" placeholder="今天感觉如何？饮食、运动、睡眠的反思..."></textarea>
@@ -1933,6 +1938,7 @@
         document.getElementById('edit-bowel-count').value = rec.bowelCount || '';
         document.getElementById('edit-bowel-status').value = rec.bowelStatus || '';
         document.getElementById('edit-notes').value = rec.notes || '';
+        this.renderFoodLog();
         const modal = document.getElementById('edit-modal');
         const panel = document.getElementById('edit-panel');
         modal.classList.remove('hidden');
@@ -1942,6 +1948,49 @@
         const panel = document.getElementById('edit-panel');
         panel.classList.add('translate-x-full');
         setTimeout(() => document.getElementById('edit-modal').classList.add('hidden'), 300);
+      },
+      renderFoodLog() {
+        const notes = document.getElementById('edit-notes').value || '';
+        const section = document.getElementById('food-log-section');
+        const list = document.getElementById('food-log-list');
+        list.innerHTML = '';
+        const lines = notes.split('\n').filter(l => /^【(?:早餐|午餐|晚餐|加餐)】/.test(l.trim()));
+        if (lines.length === 0) { section.classList.add('hidden'); return; }
+        section.classList.remove('hidden');
+        const mealMap = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
+        const revMealMap = Object.fromEntries(Object.entries(mealMap).map(([k,v]) => [v,k]));
+        lines.forEach(line => {
+          const trimmed = line.trim();
+          const match = trimmed.match(/^【(早餐|午餐|晚餐|加餐)】(.*)$/);
+          if (!match) return;
+          const [, mealLabel, desc] = match;
+          const inputIds = { '早餐': 'edit-breakfast', '午餐': 'edit-lunch', '晚餐': 'edit-dinner', '加餐': 'edit-snack' };
+          const row = document.createElement('div');
+          row.className = 'flex items-center gap-2 bg-white/60 rounded-xl p-3';
+          row.innerHTML = `
+            <span class="text-xs font-medium px-2 py-1 bg-forest/10 text-forest rounded-lg flex-shrink-0">${mealLabel}</span>
+            <span class="text-xs text-ink/70 flex-1 truncate">${desc.substring(0, 40)}</span>
+            <button type="button" class="text-ink/30 hover:text-red-500 transition flex-shrink-0" title="删除此餐记录">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          `;
+          row.onclick = () => this.deleteFoodLog(mealLabel, trimmed);
+          list.appendChild(row);
+        });
+      },
+      deleteFoodLog(mealLabel, lineToRemove) {
+        const mealKeys = { '早餐': 'breakfast', '午餐': 'lunch', '晚餐': 'dinner', '加餐': 'snack' };
+        const inputIds = { '早餐': 'edit-breakfast', '午餐': 'edit-lunch', '晚餐': 'edit-dinner', '加餐': 'edit-snack' };
+        // Remove the line from notes
+        const notesEl = document.getElementById('edit-notes');
+        const lines = notesEl.value.split('\n');
+        const cleaned = lines.filter(l => l.trim() !== lineToRemove);
+        notesEl.value = cleaned.join('\n');
+        // Zero out the corresponding calorie field
+        const inputId = inputIds[mealLabel];
+        if (inputId) document.getElementById(inputId).value = 0;
+        // Re-render
+        this.renderFoodLog();
       },
       handleEditSubmit(e) {
         e.preventDefault();
