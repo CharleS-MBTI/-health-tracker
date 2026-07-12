@@ -381,6 +381,11 @@
         </div>
       </div>
 
+      <!-- Achievements Panel -->
+      <div class="glass p-6 mb-6" id="dash-achievements">
+        <!-- rendered by AchievementStore.render() -->
+      </div>
+
       <!-- Quick Add -->
       <div class="glass rounded-3xl p-6 mb-8">
         <h3 class="font-display text-xl font-bold text-ink mb-5">快速补录</h3>
@@ -1472,7 +1477,178 @@
       return `${s.getMonth()+1}/${s.getDate()}-${e.getMonth()+1}/${e.getDate()}`;
     };
 
-    // BMR / TDEE calculation
+    // ── Achievement System ────────────────────────────────────────────────────
+    const ACHIEVEMENT_KEY = 'vitality-achievements-v1';
+    class AchievementStore {
+      constructor() {
+        this.data = this.load();
+      }
+      load() {
+        try { return JSON.parse(localStorage.getItem(ACHIEVEMENT_KEY)) || {}; } catch { return {}; }
+      }
+      save() { localStorage.setItem(ACHIEVEMENT_KEY, JSON.stringify(this.data)); }
+      get list() {
+        const today = todayStr();
+        const streak = this.data.streak || 0;
+        const totalDays = Object.keys(this.data.dailyChecked || {}).length;
+        const kgLost = this.data.totalLost || 0;
+        const bmi = this.data.bestBmi || 100;
+        return [
+          { id: 'streak_7', name: '坚持一周', desc: '连续打卡 7 天', icon: '🔥', unlocked: streak >= 7, progress: Math.min(100, streak / 7 * 100), color: 'from-orange-400 to-red-500' },
+          { id: 'streak_21', name: '养成习惯', desc: '连续打卡 21 天', icon: '⭐', unlocked: streak >= 21, progress: Math.min(100, streak / 21 * 100), color: 'from-amber-400 to-orange-500' },
+          { id: 'streak_60', name: '自律达人', desc: '连续打卡 60 天', icon: '💎', unlocked: streak >= 60, progress: Math.min(100, streak / 60 * 100), color: 'from-blue-400 to-indigo-500' },
+          { id: 'streak_100', name: '百天王者', desc: '连续打卡 100 天', icon: '👑', unlocked: streak >= 100, progress: Math.min(100, streak / 100 * 100), color: 'from-purple-400 to-pink-500' },
+          { id: 'days_30', name: '月度记录者', desc: '累计记录 30 天', icon: '📅', unlocked: totalDays >= 30, progress: Math.min(100, totalDays / 30 * 100), color: 'from-green-400 to-teal-500' },
+          { id: 'days_100', name: '百日记', desc: '累计记录 100 天', icon: '📊', unlocked: totalDays >= 100, progress: Math.min(100, totalDays / 100 * 100), color: 'from-teal-400 to-cyan-500' },
+          { id: 'lose_5', name: '初见成效', desc: '累计减重 5 kg', icon: '🎯', unlocked: kgLost >= 5, progress: Math.min(100, kgLost / 5 * 100), color: 'from-pink-400 to-rose-500' },
+          { id: 'lose_10', name: '蜕变之路', desc: '累计减重 10 kg', icon: '🏆', unlocked: kgLost >= 10, progress: Math.min(100, kgLost / 10 * 100), color: 'from-rose-400 to-red-500' },
+          { id: 'bmi_normal', name: '健康体重', desc: 'BMI 进入正常范围(<24)', icon: '💪', unlocked: bmi < 24 && bmi > 0, progress: bmi > 0 ? Math.max(0, Math.min(100, (30 - bmi) / 6 * 100)) : 0, color: 'from-lime-400 to-green-500' },
+        ];
+      }
+      refresh(store, profile) {
+        const all = store.all();
+        // Compute streak
+        let streak = 0;
+        const today = new Date();
+        for (let i = 0; i < 365; i++) {
+          const d = new Date(today); d.setDate(d.getDate() - i);
+          const ds = d.toISOString().slice(0, 10);
+          const rec = store.get(ds);
+          if (rec && Object.values(rec).some(v => v !== '' && v !== null && v !== undefined && v !== '0')) {
+            if (i === streak) streak++;
+            else break;
+          } else if (i > 0) { break; }
+        }
+        this.data.streak = streak;
+        this.data.totalDays = all.length;
+        // Compute total kg lost
+        const weights = all.filter(([_, r]) => r.weight && !isNaN(Number(r.weight))).map(([_, r]) => Number(r.weight));
+        if (weights.length >= 2) {
+          this.data.totalLost = Math.round(Math.max(0, weights[0] - weights[weights.length - 1]) * 10) / 10;
+        }
+        // Compute best BMI
+        const curW = Number(profile.weight) || 95;
+        const h = Number(profile.height) / 100 || 1.78;
+        this.data.bestBmi = Math.min(this.data.bestBmi || 100, curW / (h * h));
+        // Track daily check
+        if (!this.data.dailyChecked) this.data.dailyChecked = {};
+        this.data.dailyChecked[todayStr()] = true;
+        this.save();
+      }
+      render(containerId) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        const achievements = this.list;
+        const unlocked = achievements.filter(a => a.unlocked).length;
+        const total = achievements.length;
+        el.innerHTML = `
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-display text-lg font-bold text-ink">🏅 成就徽章</h3>
+            <span class="text-xs bg-forest text-white px-3 py-1 rounded-full">${unlocked}/${total}</span>
+          </div>
+          <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            ${achievements.map(a => `
+              <div class="text-center p-3 rounded-xl border ${a.unlocked ? 'bg-gradient-to-br ' + a.color + ' text-white border-transparent shadow-sm' : 'bg-stone/30 border-stone text-ink/30'} transition-all duration-300">
+                <div class="text-2xl mb-1">${a.icon}</div>
+                <div class="text-xs font-medium leading-tight">${a.name}</div>
+                ${!a.unlocked ? `<div class="mt-1 h-1 rounded-full bg-stone/50"><div class="h-1 rounded-full bg-forest/30" style="width:${a.progress}%"></div></div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          <div class="mt-3 flex items-center gap-4">
+            <div class="flex items-center gap-1.5 text-sm"><span class="text-lg">🔥</span><span class="font-number font-bold text-ink">${this.data.streak || 0}</span><span class="text-ink/50 text-xs">天连续打卡</span></div>
+            <div class="flex items-center gap-1.5 text-sm"><span class="text-lg">📅</span><span class="font-number font-bold text-ink">${this.data.totalDays || 0}</span><span class="text-ink/50 text-xs">天累计记录</span></div>
+          </div>`;
+      }
+    }
+    const achievements = new AchievementStore();
+
+    // ── Adaptive TDEE Algorithm ───────────────────────────────────────────────
+    function calcAdaptiveTDEE(store, profile) {
+      const staticBMR = calcBMR(profile);
+      const staticTDEE = staticBMR * (Number(profile.activity) || 1.2);
+      // Need at least 7 days of weight + calorie data for adaptive mode
+      const all = store.all();
+      const weightCalDays = all.filter(([ds, r]) => {
+        return r.weight && !isNaN(Number(r.weight)) && (Number(r.breakfast||0) + Number(r.lunch||0) + Number(r.dinner||0) + Number(r.snack||0)) > 0;
+      });
+      if (weightCalDays.length < 7) {
+        return { tdee: staticTDEE, bmr: staticBMR, isAdaptive: false, daysNeeded: 7 - weightCalDays.length, confidence: 'low', label: '静态估算（需更多数据）' };
+      }
+      // Use last 14-28 days for rolling average
+      const recent = weightCalDays.slice(-Math.min(28, weightCalDays.length));
+      let totalIntake = 0, totalWeightChange = 0;
+      for (let i = 1; i < recent.length; i++) {
+        const curr = recent[i][1];
+        const prev = recent[i - 1][1];
+        const intake = Number(curr.breakfast||0) + Number(curr.lunch||0) + Number(curr.dinner||0) + Number(curr.snack||0);
+        const wChange = Number(prev.weight) - Number(curr.weight);
+        totalIntake += intake;
+        totalWeightChange += wChange;
+      }
+      const avgIntake = totalIntake / (recent.length - 1);
+      const avgDelta = totalWeightChange / (recent.length - 1);
+      // 1 kg body weight ≈ 7700 kcal deficit
+      const adaptiveTDEE = avgIntake + avgDelta * 7700;
+      // Clamp to reasonable range relative to static
+      const minTDEE = staticTDEE * 0.75;
+      const maxTDEE = staticTDEE * 1.25;
+      const clampedTDEE = Math.round(Math.max(minTDEE, Math.min(maxTDEE, adaptiveTDEE)));
+      const daysUsed = recent.length - 1;
+      const confidence = daysUsed >= 21 ? 'high' : daysUsed >= 14 ? 'medium' : 'low';
+      return {
+        tdee: clampedTDEE,
+        bmr: Math.round(clampedTDEE / (Number(profile.activity) || 1.2)),
+        isAdaptive: true,
+        confidence,
+        daysUsed,
+        label: confidence === 'high' ? '自适应精准计算' : confidence === 'medium' ? '自适应校准中' : '自适应初步估算',
+        rawAdaptive: Math.round(adaptiveTDEE),
+        staticTDEE: Math.round(staticTDEE)
+      };
+    }
+
+    // ── HealthKit / Apple Health Sync ──────────────────────────────────────────
+    async function syncAppleHealth(store, dateStr) {
+      // Try navigator.health API (experimental)
+      const result = { steps: null, weight: null, sleepHours: null, success: false };
+      try {
+        // Modern approach: use Health Connect (Android) or Web Health API
+        if ('health' in navigator) {
+          try {
+            const health = await navigator.health.query({
+              filter: {
+                type: 'HKQuantityTypeIdentifierStepCount',
+                startDate: new Date(dateStr + 'T00:00:00'),
+                endDate: new Date(dateStr + 'T23:59:59'),
+              }
+            });
+            if (health && health[0]) result.steps = health[0].value;
+          } catch(e) {}
+        }
+        // Fallback: check if Apple Health data is available via URL scheme
+        // On iOS, we can redirect to Health app - user copies data manually
+        if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+          window.open('x-apple-health://', '_blank');
+        }
+      } catch(e) {}
+      // Manual sync UI
+      const rec = store.get(dateStr);
+      const steps = prompt('Apple Watch/健康数据同步\n\n请查看健康App并输入以下数据：\n1. 今日步数\n2. 今日体重（若有智能秤）\n3. 昨日睡眠时长（小时）', 
+        [result.steps || '', rec?.weight || '', result.sleepHours || ''].join(','));
+      if (steps) {
+        const parts = steps.split(',');
+        if (rec) {
+          if (parts[0] && !rec.exercise) rec.exercise = String(Math.round(Number(parts[0]) * 0.04));
+          if (parts[1]) rec.weight = parts[1];
+          if (parts[2]) rec.sleep = parts[2];
+          store.set(dateStr, rec);
+        }
+      }
+      return result;
+    }
+
+    // ── BMR / TDEE (Static) ───────────────────────────────────────────────────
     function calcBMR(profile) {
       const w = Number(profile.weight) || 0;
       const h = Number(profile.height) || 0;
@@ -1772,7 +1948,8 @@
       _renderWeeklyAdjustment(todayDeficit) {
         const all = this.store.all().filter(([d]) => d <= todayStr());
         const p = this.profile.profile;
-        const tdee = calcTDEE(p);
+        const adaptiveResult = calcAdaptiveTDEE(this.store, p);
+        const tdee = adaptiveResult.tdee;
         const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon...
 
         // Calculate weekly stats
@@ -1839,11 +2016,14 @@
 
       renderProfile() {
         const p = this.profile.profile;
-        const bmr = calcBMR(p);
-        const tdee = calcTDEE(p);
+        const adaptive = calcAdaptiveTDEE(this.store, p);
+        const bmr = adaptive.bmr;
+        const tdee = adaptive.tdee;
+        const tdLabel = adaptive.label;
+        const tdBadge = adaptive.isAdaptive ? ` (${adaptive.confidence === 'high' ? '精准' : '校准中'})` : ' (静态)';
         const targetIntake = Math.max(1200, Math.round(tdee - 500));
         document.getElementById('profile-bmr').textContent = bmr ? `${Math.round(bmr)} kcal` : '--';
-        document.getElementById('profile-tdee').textContent = tdee ? `${Math.round(tdee)} kcal` : '--';
+        document.getElementById('profile-tdee').textContent = tdee ? `${Math.round(tdee)} kcal${tdBadge}` : '--';
         document.getElementById('profile-target-intake').textContent = tdee ? `${targetIntake} kcal` : '--';
 
         const goal = calcGoalMetrics(p);
@@ -1994,6 +2174,9 @@
 
         this.makeWeightChart('chart-weight-mini', labels, weights);
         this.makeDeficitChart('chart-deficit-mini', labels, deficits);
+        // Refresh achievements
+        achievements.refresh(this.store, p);
+        achievements.render('dash-achievements');
       },
 
       handleQuickSubmit(e) {
@@ -2023,8 +2206,15 @@
       syncAppleWatch() {
         const burn = document.getElementById('quick-apple-burn').value;
         const steps = document.getElementById('quick-apple-steps').value;
+        const dateStr = document.getElementById('quick-date').value || todayStr();
         if (!burn && !steps) {
-          alert('请输入 Apple Watch 上的运动消耗和/或步数');
+          // Try HealthKit auto-sync
+          syncAppleHealth(this.store, dateStr).then(r => {
+            if (r && (r.steps || r.weight)) {
+              if (r.steps) document.getElementById('quick-apple-steps').value = r.steps;
+              alert('已从健康数据同步：' + [r.steps ? r.steps + '步' : '', r.weight ? r.weight + 'kg' : ''].filter(Boolean).join(', '));
+            }
+          });
           return;
         }
         // Open today's edit panel and pre-fill
@@ -2752,6 +2942,109 @@
         setTimeout(() => panel.classList.remove('translate-x-full'), 10);
       },
 
+      // ── Food Search API (Open Food Facts) ────────────────────────────────────
+      async searchFoodAPI(query) {
+        const loadingEl = document.getElementById('food-search-loading');
+        const resultsEl = document.getElementById('food-search-results');
+        loadingEl.classList.remove('hidden');
+        resultsEl.classList.add('hidden');
+        try {
+          const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&json=1&page_size=12&lc=zh&lang=zh`;
+          const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          const data = await resp.json();
+          if (!data.products || data.products.length === 0) {
+            resultsEl.innerHTML = '<p class="text-xs text-ink/50 py-2">未找到匹配食物，请尝试其他关键词或使用手动模式</p>';
+          } else {
+            resultsEl.innerHTML = data.products.filter(p => p.product_name_zh || p.product_name).slice(0, 8).map(p => {
+              const name = p.product_name_zh || p.product_name || '未知食物';
+              const cal = p.nutriments && p.nutriments['energy-kcal_100g'] ? Math.round(p.nutriments['energy-kcal_100g']) : '?';
+              const serving = p.serving_size || '100g';
+              return `<button onclick="app.addFoodFromAPI('${name.replace(/'/g, "\\'")}', ${cal === '?' ? 0 : cal}, '${serving}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-forest/5 text-sm border border-stone/50 flex justify-between items-center">
+                <span class="text-ink/80 truncate max-w-[70%]">${name}</span>
+                <span class="text-xs text-forest font-medium">${cal}kcal/${serving}</span>
+              </button>`;
+            }).join('');
+          }
+          resultsEl.classList.remove('hidden');
+        } catch(e) {
+          resultsEl.innerHTML = '<p class="text-xs text-ink/40 py-2">搜索超时，请检查网络后重试</p>';
+          resultsEl.classList.remove('hidden');
+        }
+        loadingEl.classList.add('hidden');
+      },
+
+      addFoodFromAPI(name, cal, serving) {
+        if (cal <= 0) cal = 100; // fallback
+        const item = this.foodSelected.find(f => f.name === name);
+        if (item) {
+          item.quantity += 1;
+        } else {
+          this.foodSelected.push({ name, unit: serving, weight: 100, cal, quantity: 1 });
+        }
+        this.renderSelectedFood();
+        document.getElementById('food-search-results').classList.add('hidden');
+        document.getElementById('food-search-input').value = '';
+      },
+
+      // ── Barcode Scanner ─────────────────────────────────────────────────────
+      async scanBarcode() {
+        const video = document.getElementById('barcode-video');
+        if (!('BarcodeDetector' in window)) {
+          // Fallback: prompt user to enter barcode number
+          const code = prompt('条码扫描需 Chrome/Edge 支持。\n请直接输入商品条码数字：');
+          if (code && /^\d{8,13}$/.test(code.trim())) {
+            this.lookupBarcode(code.trim());
+          }
+          return;
+        }
+        try {
+          video.classList.remove('hidden');
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          video.srcObject = stream;
+          const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+          const scan = async () => {
+            try {
+              const barcodes = await detector.detect(video);
+              if (barcodes.length > 0) {
+                stream.getTracks().forEach(t => t.stop());
+                video.classList.add('hidden');
+                this.lookupBarcode(barcodes[0].rawValue);
+                return;
+              }
+              requestAnimationFrame(scan);
+            } catch(e) { requestAnimationFrame(scan); }
+          };
+          scan();
+        } catch(e) {
+          video.classList.add('hidden');
+          const code = prompt('无法打开相机。请输入商品条码数字：');
+          if (code && /^\d{8,13}$/.test(code.trim())) {
+            this.lookupBarcode(code.trim());
+          }
+        }
+      },
+
+      async lookupBarcode(code) {
+        const loadingEl = document.getElementById('food-search-loading');
+        const resultsEl = document.getElementById('food-search-results');
+        loadingEl.classList.remove('hidden');
+        resultsEl.classList.add('hidden');
+        try {
+          const resp = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`, { signal: AbortSignal.timeout(8000) });
+          const data = await resp.json();
+          if (data.product) {
+            const p = data.product;
+            const name = p.product_name_zh || p.product_name || '未知商品';
+            const cal = p.nutriments && p.nutriments['energy-kcal_100g'] ? Math.round(p.nutriments['energy-kcal_100g']) : 100;
+            const serving = p.serving_size || '100g';
+            this.addFoodFromAPI(name, cal, serving);
+            return;
+          }
+        } catch(e) {}
+        loadingEl.classList.add('hidden');
+        alert('未找到该条码对应的食物信息');
+      },
+
       closeFoodCapture() {
         const modal = document.getElementById('food-modal');
         const panel = document.getElementById('food-panel');
@@ -2816,20 +3109,23 @@
                     },
                     {
                       type: 'text',
-                      text: `请识别这张图片中所有的食物，并估算每种食物的卡路里。返回JSON格式（不要其他文字）：
+                      text: `请识别这张图片中所有食物，返回结构化营养JSON。要求精准：
 {
   "foods": [
-    {"name": "食物名称", "cal": 卡路里(千卡), "quantity": 份数(1份的标准分量), "unit": "份/个/碗/100g等"}
+    {"name": "食物名称", "cal": 卡路里(kcal), "protein": 蛋白质(g), "fat": 脂肪(g), "carbs": 碳水(g), "quantity": 份数, "unit": "份/个/碗/100g"}
   ],
-  "total_cal": 总卡路里,
-  "note": "一句鼓励语(15字以内)"
+  "total_cal": 总热量(kcal),
+  "total_protein": 总蛋白质(g),
+  "total_fat": 总脂肪(g),
+  "total_carbs": 总碳水(g),
+  "note": "15字鼓励语"
 }
 
 要求：
-- 如果图片中有多种食物，分别列出每种
-- 如果没有食物或不相关，返回 {"foods":[], "total_cal":0, "note":"未识别到食物"}
-- 卡路里估算尽量准确
-- 只返回JSON，不要任何其他文字`
+- 每种食物的 cal/protein/fat/carbs 必须填写，不能为空
+- 用最合理的常见单位（如"1碗米饭≈200g,174kcal,蛋白质3.9g,脂肪0.4g,碳水38.9g"）
+- 如果没有食物，返回 {"foods":[],"total_cal":0,"total_protein":0,"total_fat":0,"total_carbs":0,"note":"未识别到食物"}
+- 只返回JSON，不要文字`
                     }
                   ]
                 }
@@ -2864,11 +3160,21 @@
               });
             });
 
-            let resultHTML = `<p class="font-medium text-purple-700 text-sm mb-3">DeepSeek 识别结果：</p>`;
+            let resultHTML = `<p class="font-medium text-purple-700 text-sm mb-3">🤖 DeepSeek 识别结果：</p>`;
             parsed.foods.forEach(f => {
-              resultHTML += `<div class="flex justify-between text-sm text-purple-800 py-1"><span>${f.name} x${f.quantity || 1} ${f.unit || '份'}</span><span class="font-number font-semibold">${f.cal || 0} kcal</span></div>`;
+              resultHTML += `<div class="flex justify-between text-sm text-purple-800 py-1 border-b border-purple-100 last:border-0">
+                <div><span class="font-medium">${f.name}</span> ×${f.quantity || 1}${f.unit || '份'}</div>
+                <span class="font-number font-semibold">${f.cal || 0} kcal</span>
+              </div>`;
             });
-            resultHTML += `<div class="mt-2 pt-2 border-t border-purple-200 flex justify-between text-sm"><span class="font-medium">合计</span><span class="font-number font-bold text-purple-700">${parsed.total_cal || 0} kcal</span></div>`;
+            if (parsed.total_protein || parsed.total_fat || parsed.total_carbs) {
+              resultHTML += `<div class="mt-3 p-3 bg-white/60 rounded-xl grid grid-cols-3 gap-2 text-center">
+                <div><div class="font-number text-sm font-bold text-red-500">${parsed.total_protein || 0}g</div><div class="text-xs text-ink/50">蛋白质</div></div>
+                <div><div class="font-number text-sm font-bold text-amber-500">${parsed.total_fat || 0}g</div><div class="text-xs text-ink/50">脂肪</div></div>
+                <div><div class="font-number text-sm font-bold text-blue-500">${parsed.total_carbs || 0}g</div><div class="text-xs text-ink/50">碳水</div></div>
+              </div>`;
+            }
+            resultHTML += `<div class="mt-2 pt-2 border-t border-purple-200 flex justify-between text-sm"><span class="font-medium">合计热量</span><span class="font-number font-bold text-purple-700">${parsed.total_cal || 0} kcal</span></div>`;
             if (parsed.note) resultHTML += `<p class="mt-2 text-xs text-purple-600 italic">💬 ${parsed.note}</p>`;
             resultEl.innerHTML = resultHTML;
             resultEl.classList.remove('hidden');
@@ -3065,7 +3371,23 @@
     };
 
     window.app = app;
-    document.addEventListener('DOMContentLoaded', () => app.init());
+    document.addEventListener('DOMContentLoaded', () => {
+      app.init();
+      // Food search listener
+      const searchInput = document.getElementById('food-search-input');
+      if (searchInput) {
+        let debounceTimer;
+        searchInput.addEventListener('input', () => {
+          clearTimeout(debounceTimer);
+          const q = searchInput.value.trim();
+          if (q.length < 2) {
+            document.getElementById('food-search-results').classList.add('hidden');
+            return;
+          }
+          debounceTimer = setTimeout(() => app.searchFoodAPI(q), 400);
+        });
+      }
+    });
   </script>
   <!-- Food Capture Modal -->
   <div id="food-modal" class="fixed inset-0 z-50 hidden">
@@ -3081,8 +3403,24 @@
         </button>
       </div>
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
-        <!-- Photo Upload -->
-        <div class="glass rounded-2xl p-5 text-center">
+        <!-- Food Search + Barcode -->
+        <div class="glass rounded-2xl p-4 space-y-3">
+          <div class="flex gap-2">
+            <div class="flex-1 relative">
+              <input type="text" id="food-search-input" placeholder="搜索食物（如 宫保鸡丁、拿铁…）" class="w-full pl-10 pr-3 py-2.5 rounded-xl border border-stone bg-white text-sm focus:outline-none focus:border-forest transition">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <button onclick="app.scanBarcode()" class="btn-press px-3 rounded-xl bg-forest hover:bg-moss text-white flex items-center gap-1 text-xs font-medium transition" id="barcode-btn" title="条码扫描">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v-1a2 2 0 012-2h2M4 17v1a2 2 0 002 2h2M16 4h2a2 2 0 012 2v1M16 20h2a2 2 0 002-2v-1"/><rect x="7" y="8" width="2" height="8" rx="0.5"/><rect x="11" y="8" width="2" height="8" rx="0.5"/><rect x="15" y="8" width="2" height="8" rx="0.5"/></svg>
+1130→            </button>
+1131→          </div>
+1132→          <div id="food-search-results" class="hidden space-y-1 max-h-60 overflow-y-auto"></div>
+1133→          <div id="food-search-loading" class="hidden flex items-center gap-2 py-2"><div class="w-4 h-4 border-2 border-forest border-t-transparent rounded-full animate-spin"></div><span class="text-xs text-ink/50">搜索中...</span></div>
+1134→          <video id="barcode-video" class="hidden w-full rounded-xl" autoplay playsinline></video>
+1135→        </div>
+1136→
+1137→        <!-- Photo Upload -->
+1138→        <div class="glass rounded-2xl p-5 text-center">
           <input type="file" id="food-image-input" accept="image/*" capture="environment" class="hidden" onchange="app.handleFoodImage(this)">
           <div id="food-image-preview" class="hidden mb-4">
             <img id="food-preview-img" src="" alt="食物照片" class="w-full h-48 object-cover rounded-xl">
