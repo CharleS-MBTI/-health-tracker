@@ -2493,6 +2493,21 @@
           });
         }
         document.getElementById('food-total-calories').textContent = total;
+
+        // Update description preview
+        const previewEl = document.getElementById('food-desc-preview');
+        const previewText = document.getElementById('food-desc-text');
+        const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
+        if (total > 0) {
+          const desc = this.foodSelected.map(item => {
+            const c = Math.round(item.cal * item.quantity);
+            return `${item.name}×${item.quantity}${item.unit}(${c}kcal)`;
+          }).join(' + ');
+          previewText.textContent = `【${mealLabels[this.foodMeal] || '记录'}】${desc} = ${total}kcal`;
+          previewEl.classList.remove('hidden');
+        } else {
+          previewEl.classList.add('hidden');
+        }
       },
 
       applyFoodCalories() {
@@ -2502,10 +2517,30 @@
           return;
         }
         const inputMap = { breakfast: 'edit-breakfast', lunch: 'edit-lunch', dinner: 'edit-dinner', snack: 'edit-snack' };
+        const mealLabels = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
         const inputId = inputMap[this.foodMeal];
         if (inputId) {
           const current = Number(document.getElementById(inputId).value) || 0;
           document.getElementById(inputId).value = current + total;
+        }
+        // Build food description & append to notes
+        const desc = this.foodSelected.map(item => {
+          const itemCal = Math.round(item.cal * item.quantity);
+          return `${item.name} ×${item.quantity}${item.unit}(${itemCal}kcal)`;
+        }).join(' + ');
+        const mealLabel = mealLabels[this.foodMeal] || '记录';
+        const noteLine = `\n【${mealLabel}】${desc} = ${total}kcal`;
+        const notesEl = document.getElementById('edit-notes');
+        const existing = notesEl.value.trim();
+        // Avoid duplicate entries for same meal
+        const mealMarker = `【${mealLabel}】`;
+        if (existing.includes(mealMarker)) {
+          // Replace existing meal entry
+          const lines = existing.split('\n');
+          const cleaned = lines.filter(l => !l.startsWith(mealMarker));
+          notesEl.value = [...cleaned, noteLine.trim()].join('\n');
+        } else {
+          notesEl.value = existing ? existing + noteLine : noteLine.trim();
         }
         this.closeFoodCapture();
       }
@@ -2580,6 +2615,12 @@
           <div class="space-y-2" id="food-selected-list">
             <!-- dynamically populated -->
           </div>
+        </div>
+
+        <!-- Food Description Preview -->
+        <div id="food-desc-preview" class="hidden bg-white/60 rounded-2xl p-3">
+          <p class="text-xs text-ink/50 mb-1">将记录到心得</p>
+          <p class="text-sm text-ink/80 font-medium" id="food-desc-text"></p>
         </div>
 
         <!-- Total -->
