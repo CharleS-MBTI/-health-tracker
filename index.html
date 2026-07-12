@@ -367,6 +367,20 @@
         </div>
       </div>
 
+      <!-- Weekly Adjustment Card -->
+      <div class="glass p-6 mb-6 border-l-4 border-sage" id="dash-weekly-card">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-sage/20 flex items-center justify-center text-forest flex-shrink-0">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          </div>
+          <div>
+            <h3 class="font-display text-lg font-bold text-ink mb-1" id="weekly-adjust-title">本周调整建议</h3>
+            <p class="text-sm text-ink/70" id="weekly-adjust-text">--</p>
+            <p class="text-xs text-ink/50 mt-2" id="weekly-adjust-detail">--</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick Add -->
       <div class="glass rounded-3xl p-6 mb-8">
         <h3 class="font-display text-xl font-bold text-ink mb-5">快速补录</h3>
@@ -395,6 +409,16 @@
             <button type="submit" class="btn-press w-full bg-forest hover:bg-moss text-white py-2.5 rounded-xl text-sm font-medium transition">保存</button>
           </div>
         </form>
+        <!-- Apple Watch Sync -->
+        <div class="mt-4 pt-4 border-t border-stone flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-black/5 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 7v5l3 3"/></svg>
+          </div>
+          <span class="text-sm text-ink/60 flex-1">Apple Watch 运动数据</span>
+          <input type="number" id="quick-apple-burn" placeholder="运动消耗 kcal" class="w-36 bg-white/60 border border-stone rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-forest">
+          <input type="number" id="quick-apple-steps" placeholder="步数" class="w-24 bg-white/60 border border-stone rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-forest">
+          <button type="button" onclick="app.syncAppleWatch()" class="btn-press bg-black hover:bg-black/80 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition flex-shrink-0">同步</button>
+        </div>
       </div>
 
       <!-- Mini Charts -->
@@ -1739,6 +1763,63 @@
           document.getElementById('dash-goal-pace').textContent = '暂无数据';
         }
       },
+      _renderWeeklyAdjustment(todayDeficit) {
+        const all = this.store.all().filter(([d]) => d <= todayStr());
+        const p = this.profile.profile;
+        const tdee = calcTDEE(p);
+        const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon...
+
+        // Calculate weekly stats
+        const last7 = all.slice(-7);
+        const weeklyDeficits = last7.map(([d, r]) => {
+          const intake = Number(r.breakfast||0) + Number(r.lunch||0) + Number(r.dinner||0) + Number(r.snack||0);
+          const burn = Number(r.burn) || 0;
+          return tdee + burn - intake;
+        }).filter(d => !isNaN(d));
+
+        const avgDeficit = weeklyDeficits.length ? weeklyDeficits.reduce((a,b)=>a+b,0) / weeklyDeficits.length : 0;
+        const today = todayStr();
+
+        // Check if today is in last 7 days — if not, suggest a rest/carb day
+        const hasRecordToday = last7.some(([d]) => d === today);
+        const consecutiveDays = (() => {
+          let count = 0;
+          for (let i = last7.length - 1; i >= 0; i--) {
+            const intake = Number(last7[i][1].breakfast||0) + Number(last7[i][1].lunch||0) + Number(last7[i][1].dinner||0) + Number(last7[i][1].snack||0);
+            if (intake > 0) count++; else break;
+          }
+          return count;
+        })();
+
+        // Determine recommendation
+        let title, text, detail;
+        // Saturdays (6) or long streaks deserve a special day
+        if (dayOfWeek === 6 || consecutiveDays >= 6) {
+          title = 'Rest & Refeed Day';
+          text = '连续减脂多日，建议今天适当放松：摄入可提至 TDEE 附近(约' + Math.round(tdee) + 'kcal)，补充碳水让代谢reset。';
+          detail = '减脂不是冲刺，是马拉松。一天多吃不会白费一周努力，反而让下周代谢更有力。';
+          if (p.weight && p.target) {
+            const kgLeft = Number(p.weight) - Number(p.target);
+            if (kgLeft > 5) detail += ' 胆囊腺肌症注意：放松日也要避免油炸高脂，优选碳水为主的食物。';
+          }
+        } else if (consecutiveDays >= 4 && avgDeficit > 800) {
+          title = '代谢保护日建议';
+          text = '本周平均缺口' + Math.round(avgDeficit) + 'kcal偏高，今天建议摄入提到' + Math.round(tdee - 500) + 'kcal左右，防止代谢适应。';
+          detail = '长期大缺口会让身体进入节能模式。偶尔松一松，反而减得更稳。高尿酸注意多喝水。';
+        } else if (dayOfWeek === 3) { // Wednesday
+          title = '中周调整建议';
+          text = '半周过去了，检查下：喝水达标了吗？盐控制住了吗？建议今天额外多喝500ml水。';
+          detail = '高尿酸+高血压：水是你的代谢助攻。坚持少盐，肾脏会感谢你。';
+        } else {
+          title = '本周调整建议';
+          text = '按当前节奏继续。' + (avgDeficit > 0 ? '本周日均缺口约' + Math.round(avgDeficit) + 'kcal。' : '数据积累中，坚持记录就能看到趋势。');
+          detail = '每一餐的选择，都是对身体的一次投票。选对一次，就离目标近一步。';
+        }
+
+        document.getElementById('weekly-adjust-title').textContent = title;
+        document.getElementById('weekly-adjust-text').textContent = text;
+        document.getElementById('weekly-adjust-detail').textContent = detail;
+      },
       loadProfileForm() {
         const p = this.profile.profile;
         document.getElementById('profile-gender').value = p.gender;
@@ -1880,6 +1961,9 @@
           recEl.classList.add('hidden');
         }
 
+        // Weekly adjustment
+        this._renderWeeklyAdjustment(deficit);
+
         // mini charts
         this.renderMiniCharts();
       },
@@ -1929,6 +2013,30 @@
         e.target.reset();
         document.getElementById('quick-date').value = todayStr();
         this.refresh();
+      },
+      syncAppleWatch() {
+        const burn = document.getElementById('quick-apple-burn').value;
+        const steps = document.getElementById('quick-apple-steps').value;
+        if (!burn && !steps) {
+          alert('请输入 Apple Watch 上的运动消耗和/或步数');
+          return;
+        }
+        // Open today's edit panel and pre-fill
+        this.openTodayEdit();
+        if (burn) {
+          const cur = Number(document.getElementById('edit-burn').value) || 0;
+          document.getElementById('edit-burn').value = cur + Number(burn);
+        }
+        if (steps) {
+          // Estimate: ~0.04 kcal per step for 95kg person
+          const stepsCal = Math.round(Number(steps) * 0.04);
+          const existing = document.getElementById('edit-notes').value.trim();
+          document.getElementById('edit-notes').value = existing
+            ? existing + '\nApple Watch: ' + steps + '步(约' + stepsCal + 'kcal)'
+            : 'Apple Watch: ' + steps + '步(约' + stepsCal + 'kcal)';
+        }
+        document.getElementById('quick-apple-burn').value = '';
+        document.getElementById('quick-apple-steps').value = '';
       },
 
       // ── Daily View ────────────────────────────────────────────────────────
