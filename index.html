@@ -2510,21 +2510,25 @@
                 content: `解析以下健康记录，提取结构化数据。返回纯JSON（不要其他文字）：
 {
   "weight": 体重数字(kg)或null,
-  "breakfast": 早餐描述和卡路里,
-  "lunch": 午餐描述和卡路里,
-  "dinner": 晚餐描述和卡路里,
-  "snack": 零食描述和卡路里,
+  "breakfast_cal": 早餐总卡路里数字或null,
+  "breakfast_desc": "早餐吃了什么"或null,
+  "lunch_cal": 午餐总卡路里数字或null,
+  "lunch_desc": "午餐吃了什么"或null,
+  "dinner_cal": 晚餐总卡路里数字或null,
+  "dinner_desc": "晚餐吃了什么"或null,
+  "snack_cal": 零食总卡路里数字或null,
+  "snack_desc": "零食吃了什么"或null,
   "burn": 运动消耗卡路里或null,
   "water": 喝水毫升数或null,
   "bowelCount": 大便次数或null,
   "bowelStatus": "正常"/"便秘"/"腹泻"/"偏干"/"偏稀"/null,
-  "notes": 综合心得描述
+  "notes": 综合心得
 }
 
 规则：
-- breakfast/lunch/dinner/snack 如果有卡路里数字，提取出来，描述包含食物名称
-- 如果用户只描述了食物没提卡路里，尝试合理估算并标注"(估算)"
-- 如果用户说"没吃XX"则该餐为null
+- cal字段只放数字，desc字段只放食物描述
+- 如果用户只描述了食物没提卡路里，尝试合理估算cal，desc标注"(估算)"
+- 如果某餐没吃，cal和desc都设为null
 - 只返回JSON，不要任何解释
 
 用户输入：${text}`
@@ -2577,21 +2581,24 @@
       _parseVoiceLocally(text) {
         var result = {
           weight: null,
-          breakfast: null,
-          lunch: null,
-          dinner: null,
-          snack: null,
+          breakfast_cal: null, breakfast_desc: null,
+          lunch_cal: null, lunch_desc: null,
+          dinner_cal: null, dinner_desc: null,
+          snack_cal: null, snack_desc: null,
           burn: null,
           water: null,
           bowelCount: null,
           bowelStatus: null,
-          notes: text
+          notes: text,
+          // 旧格式兼容
+          breakfast: null, lunch: null, dinner: null, snack: null
         };
 
-        // Weight: /(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i
-        var weightMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i);
-        if (weightMatch) {
-          result.weight = parseFloat(weightMatch[1]);
+        // 辅助：提取卡路里数字
+        function extractCalFromStr(s) {
+          if (!s) return null;
+          var m = s.match(/(\d+)\s*(?:kcal|大卡|千卡|卡路里|卡)/i);
+          return m ? parseInt(m[1], 10) : null;
         }
 
         // Helper: extract meal description
@@ -2604,22 +2611,48 @@
           return desc;
         }
 
+        // Weight: /(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i
+        var weightMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i);
+        if (weightMatch) {
+          result.weight = parseFloat(weightMatch[1]);
+        }
+
         // Breakfast: /早餐[：:]*([^。,\n，]+)/
-        result.breakfast = extractMeal(/早餐[：:]*([^。,\n，]+)/, text);
+        var bf = extractMeal(/早餐[：:]*([^。,\n，]+)/, text);
+        if (bf) {
+          result.breakfast_cal = extractCalFromStr(bf);
+          result.breakfast_desc = bf;
+          result.breakfast = bf;
+        }
 
         // Lunch: /午餐[：:]*([^。,\n，]+)/
-        result.lunch = extractMeal(/午餐[：:]*([^。,\n，]+)/, text);
+        var lu = extractMeal(/午餐[：:]*([^。,\n，]+)/, text);
+        if (lu) {
+          result.lunch_cal = extractCalFromStr(lu);
+          result.lunch_desc = lu;
+          result.lunch = lu;
+        }
 
         // Dinner: /晚餐[：:]*([^。,\n，]+)/
-        result.dinner = extractMeal(/晚餐[：:]*([^。,\n，]+)/, text);
+        var di = extractMeal(/晚餐[：:]*([^。,\n，]+)/, text);
+        if (di) {
+          result.dinner_cal = extractCalFromStr(di);
+          result.dinner_desc = di;
+          result.dinner = di;
+        }
 
         // Snack: /(?:加餐|零食)[：:]*([^。,\n，]+)/
-        result.snack = extractMeal(/(?:加餐|零食)[：:]*([^。,\n，]+)/, text);
+        var sn = extractMeal(/(?:加餐|零食)[：:]*([^。,\n，]+)/, text);
+        if (sn) {
+          result.snack_cal = extractCalFromStr(sn);
+          result.snack_desc = sn;
+          result.snack = sn;
+        }
 
         // Exercise burn
-        var burnMatch = text.match(/(?:运动|锻炼|跑步|游泳|骑车)[^，,\n]*?(\d+)\s*(?:kcal|卡|千卡|大卡)/);
+        var burnMatch = text.match(/(?:运动|锻炼|跑步|游泳|骑车)[^，,\n]*?(\d+)\s*(?:kcal|大卡|千卡|卡路里|卡)/);
         if (!burnMatch) {
-          burnMatch = text.match(/消耗[了]?\s*(\d+)\s*(?:kcal|卡|千卡|大卡)/);
+          burnMatch = text.match(/消耗[了]?\s*(\d+)\s*(?:kcal|大卡|千卡|卡路里|卡)/);
         }
         if (burnMatch) {
           result.burn = parseInt(burnMatch[1], 10);
@@ -2636,7 +2669,7 @@
           }
         }
 
-        // Bowel count: /(\d+)\s*次?\s*(?:大便|便便|💩)/
+        // Bowel count: /(\d+)\s*次?\s*(?:大便|便便|\uD83D\uDCA9)/
         var bowelCountMatch = text.match(/(\d+)\s*次?\s*(?:大便|便便|\uD83D\uDCA9)/);
         if (bowelCountMatch) {
           result.bowelCount = parseInt(bowelCountMatch[1], 10);
@@ -2653,37 +2686,86 @@
       },
 
       _applyVoiceData(parsed) {
-        if (parsed.weight) document.getElementById('edit-weight').value = parsed.weight;
-        if (parsed.breakfast) {
-          const calMatch = String(parsed.breakfast).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-breakfast').value = calMatch ? calMatch[1] : '';
+        // 辅助函数：从各种格式中提取卡路里数字
+        function extractCal(value) {
+          if (value == null) return null;
+          if (typeof value === 'number') return value;
+          var s = String(value);
+          // 纯数字
+          var m = s.match(/^\s*(\d+)\s*$/);
+          if (m) return parseInt(m[1], 10);
+          // 卡路里模式：400kcal, 400卡, 400千卡, 400大卡, 约400卡, ...
+          m = s.match(/(\d+)\s*(?:kcal|大卡|千卡|[卡路里])/i);
+          if (m) return parseInt(m[1], 10);
+          return null;
         }
-        if (parsed.lunch) {
-          const calMatch = String(parsed.lunch).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-lunch').value = calMatch ? calMatch[1] : '';
+
+        // weight
+        if (parsed.weight != null && parsed.weight !== '')
+          document.getElementById('edit-weight').value = parsed.weight;
+
+        // breakfast - 新格式优先 (breakfast_cal)，兼容旧格式 (breakfast 字符串)
+        if (parsed.breakfast_cal != null) {
+          document.getElementById('edit-breakfast').value = parsed.breakfast_cal;
+        } else if (parsed.breakfast) {
+          var cal = extractCal(parsed.breakfast);
+          if (cal != null) document.getElementById('edit-breakfast').value = cal;
         }
-        if (parsed.dinner) {
-          const calMatch = String(parsed.dinner).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-dinner').value = calMatch ? calMatch[1] : '';
+
+        // lunch
+        if (parsed.lunch_cal != null) {
+          document.getElementById('edit-lunch').value = parsed.lunch_cal;
+        } else if (parsed.lunch) {
+          var cal = extractCal(parsed.lunch);
+          if (cal != null) document.getElementById('edit-lunch').value = cal;
         }
-        if (parsed.snack) {
-          const calMatch = String(parsed.snack).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-snack').value = calMatch ? calMatch[1] : '';
+
+        // dinner
+        if (parsed.dinner_cal != null) {
+          document.getElementById('edit-dinner').value = parsed.dinner_cal;
+        } else if (parsed.dinner) {
+          var cal = extractCal(parsed.dinner);
+          if (cal != null) document.getElementById('edit-dinner').value = cal;
         }
-        if (parsed.burn) document.getElementById('edit-burn').value = parsed.burn;
-        if (parsed.water) document.getElementById('edit-water').value = parsed.water;
-        if (parsed.bowelCount != null) document.getElementById('edit-bowel-count').value = parsed.bowelCount;
-        if (parsed.bowelStatus) document.getElementById('edit-bowel-status').value = parsed.bowelStatus;
+
+        // snack
+        if (parsed.snack_cal != null) {
+          document.getElementById('edit-snack').value = parsed.snack_cal;
+        } else if (parsed.snack) {
+          var cal = extractCal(parsed.snack);
+          if (cal != null) document.getElementById('edit-snack').value = cal;
+        }
+
+        // burn
+        if (parsed.burn != null && parsed.burn !== '')
+          document.getElementById('edit-burn').value = parsed.burn;
+
+        // water
+        if (parsed.water != null && parsed.water !== '')
+          document.getElementById('edit-water').value = parsed.water;
+
+        // bowel
+        if (parsed.bowelCount != null)
+          document.getElementById('edit-bowel-count').value = parsed.bowelCount;
+        if (parsed.bowelStatus)
+          document.getElementById('edit-bowel-status').value = parsed.bowelStatus;
+
+        // notes
         if (parsed.notes) {
-          const existing = document.getElementById('edit-notes').value.trim();
-          const mealLines = [];
-          if (parsed.breakfast) mealLines.push(`【早餐】${parsed.breakfast}`);
-          if (parsed.lunch) mealLines.push(`【午餐】${parsed.lunch}`);
-          if (parsed.dinner) mealLines.push(`【晚餐】${parsed.dinner}`);
-          if (parsed.snack) mealLines.push(`【加餐】${parsed.snack}`);
-          const fullNotes = [...mealLines, parsed.notes].join('\n');
+          var mealLines = [];
+          var desc = parsed.breakfast_desc || (typeof parsed.breakfast === 'string' ? parsed.breakfast : null);
+          if (desc) mealLines.push('【早餐】' + desc);
+          desc = parsed.lunch_desc || (typeof parsed.lunch === 'string' ? parsed.lunch : null);
+          if (desc) mealLines.push('【午餐】' + desc);
+          desc = parsed.dinner_desc || (typeof parsed.dinner === 'string' ? parsed.dinner : null);
+          if (desc) mealLines.push('【晚餐】' + desc);
+          desc = parsed.snack_desc || (typeof parsed.snack === 'string' ? parsed.snack : null);
+          if (desc) mealLines.push('【加餐】' + desc);
+          var fullNotes = mealLines.concat([parsed.notes]).join('\n');
+          var existing = document.getElementById('edit-notes').value.trim();
           document.getElementById('edit-notes').value = existing ? existing + '\n' + fullNotes : fullNotes;
         }
+
         this.renderFoodLog();
       },
 
