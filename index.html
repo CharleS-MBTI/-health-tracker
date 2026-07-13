@@ -2495,7 +2495,7 @@
       async _parseVoiceText(text) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
+          var timeout = setTimeout(() => controller.abort(), 30000);
           const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
             signal: controller.signal,
@@ -2504,7 +2504,7 @@
               'Authorization': 'Bearer ' + this.profile.profile.apiKey
             },
             body: JSON.stringify({
-              model: 'deepseek-chat',
+              model: this.profile.profile.apiModel || 'deepseek-chat',
               messages: [{
                 role: 'user',
                 content: `解析以下健康记录，提取结构化数据。返回纯JSON（不要其他文字）：
@@ -2534,22 +2534,122 @@
             })
           });
 
-          if (!response.ok) throw new Error('API error');
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            var errMsg = '';
+            if (response.status === 401) {
+              errMsg = 'API Key 无效，请重新配置';
+            } else if (response.status === 403) {
+              errMsg = 'API Key 无权限';
+            } else if (response.status === 429) {
+              errMsg = '请求过于频繁，稍后重试';
+            } else {
+              errMsg = 'API 错误 (HTTP ' + response.status + ')';
+            }
+            throw new Error(errMsg);
+          }
+
           const data = await response.json();
           const content = data.choices[0]?.message?.content || '{}';
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          // support markdown code block ```json ... ```
+          const jsonBlock = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+          const jsonStr = jsonBlock ? jsonBlock[1] : content;
+          const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
           const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : '{}');
 
-          clearTimeout(timeout);
           this._applyVoiceData(parsed);
           document.getElementById('voice-status-text').textContent = '已填入，可检查后保存';
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2500);
+          setTimeout(function() { document.getElementById('voice-status').classList.add('hidden'); }, 2500);
         } catch (err) {
           clearTimeout(timeout);
-          document.getElementById('voice-status-text').textContent = '解析失败，请手动填写';
           console.error('Voice parse error:', err);
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2500);
+          var fallbackMsg = (err.name === 'TypeError' || (err.message && (err.message.indexOf('fetch') !== -1 || err.message.indexOf('NetworkError') !== -1)))
+            ? 'CORS跨域或网络错误，使用本地解析'
+            : (err.message && err.message.indexOf('API') === 0 ? err.message : 'API 不可用，使用本地解析');
+          document.getElementById('voice-status-text').textContent = fallbackMsg;
+          // auto-fallback to local parser
+          this._parseVoiceLocally(text);
+          setTimeout(function() { document.getElementById('voice-status').classList.add('hidden'); }, 3000);
         }
+      },
+
+      _parseVoiceLocally(text) {
+        var result = {
+          weight: null,
+          breakfast: null,
+          lunch: null,
+          dinner: null,
+          snack: null,
+          burn: null,
+          water: null,
+          bowelCount: null,
+          bowelStatus: null,
+          notes: text
+        };
+
+        // Weight: /(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i
+        var weightMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i);
+        if (weightMatch) {
+          result.weight = parseFloat(weightMatch[1]);
+        }
+
+        // Helper: extract meal description
+        function extractMeal(pattern, txt) {
+          var m = txt.match(pattern);
+          if (!m) return null;
+          var desc = m[1].trim();
+          // skip if user said "没吃"
+          if (/没吃/.test(desc)) return null;
+          return desc;
+        }
+
+        // Breakfast: /早餐[：:]*([^。,\n，]+)/
+        result.breakfast = extractMeal(/早餐[：:]*([^。,\n，]+)/, text);
+
+        // Lunch: /午餐[：:]*([^。,\n，]+)/
+        result.lunch = extractMeal(/午餐[：:]*([^。,\n，]+)/, text);
+
+        // Dinner: /晚餐[：:]*([^。,\n，]+)/
+        result.dinner = extractMeal(/晚餐[：:]*([^。,\n，]+)/, text);
+
+        // Snack: /(?:加餐|零食)[：:]*([^。,\n，]+)/
+        result.snack = extractMeal(/(?:加餐|零食)[：:]*([^。,\n，]+)/, text);
+
+        // Exercise burn
+        var burnMatch = text.match(/(?:运动|锻炼|跑步|游泳|骑车)[^，,\n]*?(\d+)\s*(?:kcal|卡|千卡|大卡)/);
+        if (!burnMatch) {
+          burnMatch = text.match(/消耗[了]?\s*(\d+)\s*(?:kcal|卡|千卡|大卡)/);
+        }
+        if (burnMatch) {
+          result.burn = parseInt(burnMatch[1], 10);
+        }
+
+        // Water: /(\d+)\s*(?:ml|毫升)/ or /喝了?\s*(\d+)\s*(?:ml|毫升|杯)/
+        var waterMatch = text.match(/(\d+)\s*(?:ml|毫升)/);
+        if (waterMatch) {
+          result.water = parseInt(waterMatch[1], 10);
+        } else {
+          waterMatch = text.match(/喝了?\s*(\d+)\s*杯/);
+          if (waterMatch) {
+            result.water = parseInt(waterMatch[1], 10) * 300; // ~300ml per cup
+          }
+        }
+
+        // Bowel count: /(\d+)\s*次?\s*(?:大便|便便|💩)/
+        var bowelCountMatch = text.match(/(\d+)\s*次?\s*(?:大便|便便|\uD83D\uDCA9)/);
+        if (bowelCountMatch) {
+          result.bowelCount = parseInt(bowelCountMatch[1], 10);
+        }
+
+        // Bowel status: /(便秘|腹泻|偏干|偏稀|正常)/
+        var bowelStatusMatch = text.match(/(便秘|腹泻|偏干|偏稀|正常)/);
+        if (bowelStatusMatch) {
+          result.bowelStatus = bowelStatusMatch[1];
+        }
+
+        this._applyVoiceData(result);
+        document.getElementById('voice-status-text').textContent = '已用本地解析填入，可检查后保存';
       },
 
       _applyVoiceData(parsed) {
