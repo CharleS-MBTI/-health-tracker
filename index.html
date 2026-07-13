@@ -11,53 +11,17 @@
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232D5A45'/><text y='65' x='50' text-anchor='middle' font-size='50'>💪</text></svg>">
   <title>健康追踪</title>
   <!-- Primary CDN -->
-  <script src="https://cdn.tailwindcss.com" onerror="document.write('<script src=\'https://unpkg.com/tailwindcss-cdn@3.4.17/tailwindcss.js\'><\/script>')"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script>window._tw_fallback=function(){if(!window.tailwind){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/3.4.1/tailwind.min.js';document.head.appendChild(s);}};setTimeout(function(){if(!window.tailwind){window._tw_fallback();}},5000);</script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" onerror="document.write('<script src=\'https://unpkg.com/chart.js@4.4.7/dist/chart.umd.min.js\'><\/script>')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@300;400;600;700&family=Playfair+Display:wght@600;700;800&display=swap&subset=chinese-simplified" rel="stylesheet">
   <style>@font-face{font-family:'Noto Serif SC Fallback';src:local('Songti SC'),local('SimSun'),local('PingFang SC');}</style>
   <script>
-    // PWA Service Worker with CDN caching
+    // Unregister any legacy Service Workers that may cache broken page versions
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        const swCode = `
-          const CACHE = 'health-tracker-v2';
-          const CDN_URLS = [
-            self.location.href.split('?')[0],
-            'https://cdn.tailwindcss.com',
-            'https://unpkg.com/tailwindcss-cdn@3.4.17/tailwindcss.js',
-            'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
-            'https://unpkg.com/chart.js@4.4.7/dist/chart.umd.min.js',
-            'https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@300;400;600;700&family=Playfair+Display:wght@600;700;800&display=swap&subset=chinese-simplified'
-          ];
-          self.addEventListener('install', e => {
-            e.waitUntil(
-              caches.open(CACHE).then(c => {
-                return Promise.allSettled(CDN_URLS.map(url => c.add(url).catch(() => {})));
-              })
-            );
-          });
-          self.addEventListener('fetch', e => {
-            if (e.request.method !== 'GET') return;
-            e.respondWith(
-              caches.match(e.request).then(r => r || fetch(e.request).then(res => {
-                if (res.ok && res.status !== 206) {
-                  const clone = res.clone();
-                  caches.open(CACHE).then(c => {
-                    try { c.put(e.request, clone); } catch(e) {}
-                  });
-                }
-                return res;
-              }).catch(() => caches.match(e.request)))
-            );
-          });
-        `;
-        const blob = new Blob([swCode], { type: 'application/javascript' });
-        const url = URL.createObjectURL(blob);
-        navigator.serviceWorker.register(url).catch(() => {});
-      });
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
     }
   </script>
   <script>
@@ -2697,7 +2661,7 @@
       async _parseVoiceText(text) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
+          var timeout = setTimeout(() => controller.abort(), 30000);
           const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
             signal: controller.signal,
@@ -2706,28 +2670,38 @@
               'Authorization': 'Bearer ' + this.profile.profile.apiKey
             },
             body: JSON.stringify({
-              model: 'deepseek-chat',
+              model: this.profile.profile.apiModel || 'deepseek-chat',
               messages: [{
                 role: 'user',
-                content: `解析以下健康记录，提取结构化数据。返回纯JSON（不要其他文字）：
+                content: `你是一个专业的营养师AI。请解析以下健康饮食记录，逐种食物估算卡路里，然后按餐次汇总。
+
+返回纯JSON（不要其他任何文字）：
 {
   "weight": 体重数字(kg)或null,
-  "breakfast": 早餐描述和卡路里,
-  "lunch": 午餐描述和卡路里,
-  "dinner": 晚餐描述和卡路里,
-  "snack": 零食描述和卡路里,
+  "breakfast_cal": 早餐总卡路里数字或null,
+  "breakfast_desc": "早餐逐种食物及估算热量"或null,
+  "lunch_cal": 午餐总卡路里数字或null,
+  "lunch_desc": "午餐逐种食物及估算热量"或null,
+  "dinner_cal": 晚餐总卡路里数字或null,
+  "dinner_desc": "晚餐逐种食物及估算热量"或null,
+  "snack_cal": 零食总卡路里数字或null,
+  "snack_desc": "零食逐种食物及估算热量"或null,
   "burn": 运动消耗卡路里或null,
   "water": 喝水毫升数或null,
   "bowelCount": 大便次数或null,
   "bowelStatus": "正常"/"便秘"/"腹泻"/"偏干"/"偏稀"/null,
-  "notes": 综合心得描述
+  "notes": 综合心得
 }
 
-规则：
-- breakfast/lunch/dinner/snack 如果有卡路里数字，提取出来，描述包含食物名称
-- 如果用户只描述了食物没提卡路里，尝试合理估算并标注"(估算)"
-- 如果用户说"没吃XX"则该餐为null
-- 只返回JSON，不要任何解释
+估算规则（重要！）：
+1. 逐种食物拆解：用户说"两个鸡蛋糕一碗燕麦"，拆成"鸡蛋糕×2"和"燕麦×1碗"
+2. 根据食物类型和数量估算单份热量：鸡蛋糕1个≈150-180kcal、燕麦1碗≈150kcal
+3. 数量乘以单份=该食物总热量，所有食物相加=该餐_cal
+4. desc格式："鸡蛋糕×2(约320kcal) + 燕麦×1碗(约150kcal)" 
+5. 即使食材/菜名不常见，也要根据食材成分合理估算（如"炒肝尖"→猪肝+油≈200-250kcal）
+6. 用户明确提了卡路里数字时，以用户说的为准；没提则你必须估算
+7. 如果某餐没吃，cal和desc都设为null
+8. 每餐_cal必须是纯数字
 
 用户输入：${text}`
               }],
@@ -2736,56 +2710,423 @@
             })
           });
 
-          if (!response.ok) throw new Error('API error');
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            var errMsg = '';
+            if (response.status === 401) {
+              errMsg = 'API Key 无效，请重新配置';
+            } else if (response.status === 403) {
+              errMsg = 'API Key 无权限';
+            } else if (response.status === 429) {
+              errMsg = '请求过于频繁，稍后重试';
+            } else {
+              errMsg = 'API 错误 (HTTP ' + response.status + ')';
+            }
+            throw new Error(errMsg);
+          }
+
           const data = await response.json();
           const content = data.choices[0]?.message?.content || '{}';
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          // support markdown code block ```json ... ```
+          const jsonBlock = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+          const jsonStr = jsonBlock ? jsonBlock[1] : content;
+          const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
           const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : '{}');
 
-          clearTimeout(timeout);
           this._applyVoiceData(parsed);
           document.getElementById('voice-status-text').textContent = '已填入，可检查后保存';
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2500);
+          setTimeout(function() { document.getElementById('voice-status').classList.add('hidden'); }, 2500);
         } catch (err) {
           clearTimeout(timeout);
-          document.getElementById('voice-status-text').textContent = '解析失败，请手动填写';
           console.error('Voice parse error:', err);
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2500);
+          var fallbackMsg = (err.name === 'TypeError' || (err.message && (err.message.indexOf('fetch') !== -1 || err.message.indexOf('NetworkError') !== -1)))
+            ? 'CORS跨域或网络错误，使用本地解析'
+            : (err.message && err.message.indexOf('API') === 0 ? err.message : 'API 不可用，使用本地解析');
+          document.getElementById('voice-status-text').textContent = fallbackMsg;
+          // auto-fallback to local parser
+          this._parseVoiceLocally(text);
+          setTimeout(function() { document.getElementById('voice-status').classList.add('hidden'); }, 3000);
         }
+      },
+      _parseVoiceLocally(text) {
+    // ── 本地食物热量数据库 ────────────────────────────────────────────────
+    // 格式: 食物名 → { unit: '单位', cal: 单份热量(kcal) }
+    // 匹配时按 key 长度降序（先匹配长名称避免"鸡"先匹配到"鸡蛋"）
+    var FOOD_CALORIE_DB = [
+      // 主食
+      { name: '鸡蛋糕', unit: '个', cal: 160 },
+      { name: '鸡蛋饼', unit: '个', cal: 200 },
+      { name: '鸡蛋灌饼', unit: '个', cal: 350 },
+      { name: '馒头', unit: '个', cal: 220 },
+      { name: '花卷', unit: '个', cal: 210 },
+      { name: '米饭', unit: '碗', cal: 200 },
+      { name: '稀饭', unit: '碗', cal: 80 },
+      { name: '白粥', unit: '碗', cal: 80 },
+      { name: '小米粥', unit: '碗', cal: 90 },
+      { name: '八宝粥', unit: '碗', cal: 150 },
+      { name: '燕麦', unit: '碗', cal: 150 },
+      { name: '燕麦片', unit: '碗', cal: 150 },
+      { name: '全麦面包', unit: '片', cal: 80 },
+      { name: '面包', unit: '片', cal: 100 },
+      { name: '吐司', unit: '片', cal: 80 },
+      { name: '包子', unit: '个', cal: 200 },
+      { name: '肉包子', unit: '个', cal: 250 },
+      { name: '菜包子', unit: '个', cal: 160 },
+      { name: '小笼包', unit: '个', cal: 50 },
+      { name: '饺子', unit: '个', cal: 40 },
+      { name: '水饺', unit: '个', cal: 40 },
+      { name: '煎饺', unit: '个', cal: 60 },
+      { name: '馄饨', unit: '个', cal: 35 },
+      { name: '面条', unit: '碗', cal: 300 },
+      { name: '拉面', unit: '碗', cal: 400 },
+      { name: '刀削面', unit: '碗', cal: 400 },
+      { name: '炸酱面', unit: '碗', cal: 500 },
+      { name: '方便面', unit: '包', cal: 450 },
+      { name: '红薯', unit: '个', cal: 130 },
+      { name: '玉米', unit: '根', cal: 110 },
+      { name: '土豆', unit: '个', cal: 160 },
+      { name: '山药', unit: '段', cal: 60 },
+      { name: '油条', unit: '根', cal: 270 },
+      { name: '烧饼', unit: '个', cal: 250 },
+      { name: '煎饼', unit: '个', cal: 300 },
+      { name: '煎饼果子', unit: '个', cal: 400 },
+      { name: '手抓饼', unit: '个', cal: 350 },
+      { name: '葱油饼', unit: '张', cal: 300 },
+      { name: '炒饭', unit: '份', cal: 500 },
+      { name: '蛋炒饭', unit: '份', cal: 500 },
+      { name: '盖浇饭', unit: '份', cal: 600 },
+      { name: '炒面', unit: '份', cal: 450 },
+      // 蛋白质
+      { name: '鸡胸肉', unit: '份', cal: 165 },
+      { name: '鸡腿', unit: '个', cal: 200 },
+      { name: '鸡翅', unit: '个', cal: 100 },
+      { name: '鸡蛋', unit: '个', cal: 70 },
+      { name: '炒鸡蛋', unit: '个', cal: 100 },
+      { name: '水煮蛋', unit: '个', cal: 70 },
+      { name: '煎蛋', unit: '个', cal: 120 },
+      { name: '茶叶蛋', unit: '个', cal: 70 },
+      { name: '卤蛋', unit: '个', cal: 80 },
+      { name: '鸡肉', unit: '份', cal: 200 },
+      { name: '猪肉', unit: '份', cal: 300 },
+      { name: '猪蹄', unit: '个', cal: 350 },
+      { name: '猪肝', unit: '份', cal: 130 },
+      { name: '牛肉', unit: '份', cal: 250 },
+      { name: '牛排', unit: '份', cal: 350 },
+      { name: '羊肉', unit: '份', cal: 280 },
+      { name: '鱼肉', unit: '份', cal: 150 },
+      { name: '清蒸鱼', unit: '份', cal: 200 },
+      { name: '红烧鱼', unit: '份', cal: 300 },
+      { name: '虾', unit: '只', cal: 15 },
+      { name: '白灼虾', unit: '只', cal: 15 },
+      { name: '虾仁', unit: '份', cal: 100 },
+      { name: '豆腐', unit: '份', cal: 80 },
+      { name: '豆浆', unit: '杯', cal: 80 },
+      { name: '牛奶', unit: '杯', cal: 120 },
+      { name: '酸奶', unit: '杯', cal: 100 },
+      { name: '芝士', unit: '片', cal: 80 },
+      // 蔬菜
+      { name: '西兰花', unit: '份', cal: 35 },
+      { name: '菠菜', unit: '份', cal: 25 },
+      { name: '番茄', unit: '个', cal: 25 },
+      { name: '黄瓜', unit: '根', cal: 15 },
+      { name: '芹菜', unit: '份', cal: 15 },
+      { name: '茄子', unit: '个', cal: 35 },
+      { name: '白菜', unit: '份', cal: 15 },
+      { name: '生菜', unit: '份', cal: 15 },
+      { name: '胡萝卜', unit: '根', cal: 40 },
+      { name: '洋葱', unit: '个', cal: 60 },
+      { name: '蘑菇', unit: '份', cal: 25 },
+      { name: '木耳', unit: '份', cal: 30 },
+      { name: '海带', unit: '份', cal: 15 },
+      { name: '沙拉', unit: '份', cal: 150 },
+      { name: '蔬菜沙拉', unit: '份', cal: 80 },
+      // 水果
+      { name: '苹果', unit: '个', cal: 95 },
+      { name: '香蕉', unit: '根', cal: 105 },
+      { name: '橙子', unit: '个', cal: 65 },
+      { name: '橘子', unit: '个', cal: 45 },
+      { name: '葡萄', unit: '串', cal: 100 },
+      { name: '西瓜', unit: '块', cal: 50 },
+      { name: '草莓', unit: '颗', cal: 5 },
+      { name: '蓝莓', unit: '把', cal: 60 },
+      { name: '猕猴桃', unit: '个', cal: 60 },
+      { name: '梨', unit: '个', cal: 100 },
+      { name: '柚子', unit: '瓣', cal: 40 },
+      { name: '樱桃', unit: '颗', cal: 5 },
+      // 零食/饮品
+      { name: '饼干', unit: '片', cal: 50 },
+      { name: '薯片', unit: '包', cal: 500 },
+      { name: '蛋糕', unit: '块', cal: 350 },
+      { name: '巧克力', unit: '块', cal: 200 },
+      { name: '冰淇淋', unit: '个', cal: 200 },
+      { name: '坚果', unit: '把', cal: 160 },
+      { name: '核桃', unit: '个', cal: 40 },
+      { name: '花生', unit: '把', cal: 180 },
+      { name: '瓜子', unit: '把', cal: 100 },
+      { name: '可乐', unit: '罐', cal: 140 },
+      { name: '雪碧', unit: '罐', cal: 140 },
+      { name: '果汁', unit: '杯', cal: 120 },
+      { name: '咖啡', unit: '杯', cal: 5 },
+      { name: '拿铁', unit: '杯', cal: 150 },
+      { name: '奶茶', unit: '杯', cal: 300 },
+      { name: '啤酒', unit: '瓶', cal: 150 },
+      { name: '白酒', unit: '两', cal: 200 },
+      // 常见菜品
+      { name: '宫保鸡丁', unit: '份', cal: 350 },
+      { name: '鱼香肉丝', unit: '份', cal: 300 },
+      { name: '糖醋里脊', unit: '份', cal: 400 },
+      { name: '红烧肉', unit: '份', cal: 500 },
+      { name: '回锅肉', unit: '份', cal: 450 },
+      { name: '番茄炒蛋', unit: '份', cal: 200 },
+      { name: '青椒肉丝', unit: '份', cal: 250 },
+      { name: '地三鲜', unit: '份', cal: 300 },
+      { name: '酸辣土豆丝', unit: '份', cal: 200 },
+      { name: '水煮鱼', unit: '份', cal: 400 },
+      { name: '酸菜鱼', unit: '份', cal: 350 },
+      { name: '水煮肉片', unit: '份', cal: 400 },
+      { name: '火锅', unit: '顿', cal: 800 },
+      { name: '烧烤', unit: '顿', cal: 600 },
+      { name: '麻辣烫', unit: '份', cal: 400 },
+      { name: '冒菜', unit: '份', cal: 400 }
+    ];
+
+        var result = {
+          weight: null,
+          breakfast_cal: null, breakfast_desc: null,
+          lunch_cal: null, lunch_desc: null,
+          dinner_cal: null, dinner_desc: null,
+          snack_cal: null, snack_desc: null,
+          burn: null,
+          water: null,
+          bowelCount: null,
+          bowelStatus: null,
+          notes: text,
+          // 旧格式兼容
+          breakfast: null, lunch: null, dinner: null, snack: null
+        };
+
+        // 辅助：提取卡路里数字
+        function extractCalFromStr(s) {
+          if (!s) return null;
+          var m = s.match(/(\d+)\s*(?:kcal|大卡|千卡|卡路里|卡)/i);
+          return m ? parseInt(m[1], 10) : null;
+        }
+
+        // Helper: extract meal description
+        function extractMeal(pattern, txt) {
+          var m = txt.match(pattern);
+          if (!m) return null;
+          var desc = m[1].trim();
+          // skip if user said "没吃"
+          if (/没吃/.test(desc)) return null;
+          return desc;
+        }
+
+        // 辅助：根据食物描述估算热量
+        function estimateFoodCalories(desc) {
+          if (!desc) return null;
+          var total = 0;
+          var found = false;
+          // 按名称长度降序匹配，避免"鸡蛋"抢先匹配到"鸡蛋糕"
+          var sorted = FOOD_CALORIE_DB.slice().sort(function(a, b) {
+            return b.name.length - a.name.length;
+          });
+          for (var i = 0; i < sorted.length; i++) {
+            var item = sorted[i];
+            // 匹配"X个鸡蛋糕"或"X碗米饭"的模式
+            var re = new RegExp('(\\d+)\\s*[个只碗份根片块串颗瓣把杯罐瓶包张顿段两]?\\s*' + item.name, 'g');
+            var m;
+            while ((m = re.exec(desc)) !== null) {
+              var qty = parseInt(m[1], 10);
+              if (qty > 0 && qty <= 50) { // 数量合理范围
+                total += qty * item.cal;
+                found = true;
+              }
+            }
+            // 匹配无数量前缀（默认1份）
+            if (!found) {
+              var re2 = new RegExp('(?:[^\\d]|^)' + item.name, 'g');
+              if (re2.test(desc)) {
+                total += item.cal;
+                found = true;
+              }
+            }
+          }
+          return found ? total : null;
+        }
+
+        // Weight: /(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i
+        var weightMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:kg|公斤|千克)/i);
+        if (weightMatch) {
+          result.weight = parseFloat(weightMatch[1]);
+        }
+
+        // Breakfast: /早餐[：:]*([^。,\n，]+)/
+        var bf = extractMeal(/早餐[：:]*([^。,\n，]+)/, text);
+        if (bf) {
+          var cal = extractCalFromStr(bf);
+          if (cal == null) {
+            cal = estimateFoodCalories(bf);
+          }
+          result.breakfast_cal = cal;
+          result.breakfast_desc = bf;
+          result.breakfast = bf;
+        }
+
+        // Lunch: /午餐[：:]*([^。,\n，]+)/
+        var lu = extractMeal(/午餐[：:]*([^。,\n，]+)/, text);
+        if (lu) {
+          var cal = extractCalFromStr(lu);
+          if (cal == null) {
+            cal = estimateFoodCalories(lu);
+          }
+          result.lunch_cal = cal;
+          result.lunch_desc = lu;
+          result.lunch = lu;
+        }
+
+        // Dinner: /晚餐[：:]*([^。,\n，]+)/
+        var di = extractMeal(/晚餐[：:]*([^。,\n，]+)/, text);
+        if (di) {
+          var cal = extractCalFromStr(di);
+          if (cal == null) {
+            cal = estimateFoodCalories(di);
+          }
+          result.dinner_cal = cal;
+          result.dinner_desc = di;
+          result.dinner = di;
+        }
+
+        // Snack: /(?:加餐|零食)[：:]*([^。,\n，]+)/
+        var sn = extractMeal(/(?:加餐|零食)[：:]*([^。,\n，]+)/, text);
+        if (sn) {
+          var cal = extractCalFromStr(sn);
+          if (cal == null) {
+            cal = estimateFoodCalories(sn);
+          }
+          result.snack_cal = cal;
+          result.snack_desc = sn;
+          result.snack = sn;
+        }
+
+        // Exercise burn
+        var burnMatch = text.match(/(?:运动|锻炼|跑步|游泳|骑车)[^，,\n]*?(\d+)\s*(?:kcal|大卡|千卡|卡路里|卡)/);
+        if (!burnMatch) {
+          burnMatch = text.match(/消耗[了]?\s*(\d+)\s*(?:kcal|大卡|千卡|卡路里|卡)/);
+        }
+        if (burnMatch) {
+          result.burn = parseInt(burnMatch[1], 10);
+        }
+
+        // Water: /(\d+)\s*(?:ml|毫升)/ or /喝了?\s*(\d+)\s*(?:ml|毫升|杯)/
+        var waterMatch = text.match(/(\d+)\s*(?:ml|毫升)/);
+        if (waterMatch) {
+          result.water = parseInt(waterMatch[1], 10);
+        } else {
+          waterMatch = text.match(/喝了?\s*(\d+)\s*杯/);
+          if (waterMatch) {
+            result.water = parseInt(waterMatch[1], 10) * 300; // ~300ml per cup
+          }
+        }
+
+        // Bowel count: /(\d+)\s*次?\s*(?:大便|便便|\uD83D\uDCA9)/
+        var bowelCountMatch = text.match(/(\d+)\s*次?\s*(?:大便|便便|\uD83D\uDCA9)/);
+        if (bowelCountMatch) {
+          result.bowelCount = parseInt(bowelCountMatch[1], 10);
+        }
+
+        // Bowel status: /(便秘|腹泻|偏干|偏稀|正常)/
+        var bowelStatusMatch = text.match(/(便秘|腹泻|偏干|偏稀|正常)/);
+        if (bowelStatusMatch) {
+          result.bowelStatus = bowelStatusMatch[1];
+        }
+
+        this._applyVoiceData(result);
+        document.getElementById('voice-status-text').textContent = '已用本地解析填入，可检查后保存';
       },
 
       _applyVoiceData(parsed) {
-        if (parsed.weight) document.getElementById('edit-weight').value = parsed.weight;
-        if (parsed.breakfast) {
-          const calMatch = String(parsed.breakfast).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-breakfast').value = calMatch ? calMatch[1] : '';
+        // 辅助函数：从各种格式中提取卡路里数字
+        function extractCal(value) {
+          if (value == null) return null;
+          if (typeof value === 'number') return value;
+          var s = String(value);
+          // 纯数字
+          var m = s.match(/^\s*(\d+)\s*$/);
+          if (m) return parseInt(m[1], 10);
+          // 卡路里模式：400kcal, 400卡, 400千卡, 400大卡, 约400卡, ...
+          m = s.match(/(\d+)\s*(?:kcal|大卡|千卡|[卡路里])/i);
+          if (m) return parseInt(m[1], 10);
+          return null;
         }
-        if (parsed.lunch) {
-          const calMatch = String(parsed.lunch).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-lunch').value = calMatch ? calMatch[1] : '';
+
+        // weight
+        if (parsed.weight != null && parsed.weight !== '')
+          document.getElementById('edit-weight').value = parsed.weight;
+
+        // breakfast - 新格式优先 (breakfast_cal)，兼容旧格式 (breakfast 字符串)
+        if (parsed.breakfast_cal != null) {
+          document.getElementById('edit-breakfast').value = parsed.breakfast_cal;
+        } else if (parsed.breakfast) {
+          var cal = extractCal(parsed.breakfast);
+          if (cal != null) document.getElementById('edit-breakfast').value = cal;
         }
-        if (parsed.dinner) {
-          const calMatch = String(parsed.dinner).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-dinner').value = calMatch ? calMatch[1] : '';
+
+        // lunch
+        if (parsed.lunch_cal != null) {
+          document.getElementById('edit-lunch').value = parsed.lunch_cal;
+        } else if (parsed.lunch) {
+          var cal = extractCal(parsed.lunch);
+          if (cal != null) document.getElementById('edit-lunch').value = cal;
         }
-        if (parsed.snack) {
-          const calMatch = String(parsed.snack).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-snack').value = calMatch ? calMatch[1] : '';
+
+        // dinner
+        if (parsed.dinner_cal != null) {
+          document.getElementById('edit-dinner').value = parsed.dinner_cal;
+        } else if (parsed.dinner) {
+          var cal = extractCal(parsed.dinner);
+          if (cal != null) document.getElementById('edit-dinner').value = cal;
         }
-        if (parsed.burn) document.getElementById('edit-burn').value = parsed.burn;
-        if (parsed.water) document.getElementById('edit-water').value = parsed.water;
-        if (parsed.bowelCount != null) document.getElementById('edit-bowel-count').value = parsed.bowelCount;
-        if (parsed.bowelStatus) document.getElementById('edit-bowel-status').value = parsed.bowelStatus;
+
+        // snack
+        if (parsed.snack_cal != null) {
+          document.getElementById('edit-snack').value = parsed.snack_cal;
+        } else if (parsed.snack) {
+          var cal = extractCal(parsed.snack);
+          if (cal != null) document.getElementById('edit-snack').value = cal;
+        }
+
+        // burn
+        if (parsed.burn != null && parsed.burn !== '')
+          document.getElementById('edit-burn').value = parsed.burn;
+
+        // water
+        if (parsed.water != null && parsed.water !== '')
+          document.getElementById('edit-water').value = parsed.water;
+
+        // bowel
+        if (parsed.bowelCount != null)
+          document.getElementById('edit-bowel-count').value = parsed.bowelCount;
+        if (parsed.bowelStatus)
+          document.getElementById('edit-bowel-status').value = parsed.bowelStatus;
+
+        // notes
         if (parsed.notes) {
-          const existing = document.getElementById('edit-notes').value.trim();
-          const mealLines = [];
-          if (parsed.breakfast) mealLines.push(`【早餐】${parsed.breakfast}`);
-          if (parsed.lunch) mealLines.push(`【午餐】${parsed.lunch}`);
-          if (parsed.dinner) mealLines.push(`【晚餐】${parsed.dinner}`);
-          if (parsed.snack) mealLines.push(`【加餐】${parsed.snack}`);
-          const fullNotes = [...mealLines, parsed.notes].join('\n');
+          var mealLines = [];
+          var desc = parsed.breakfast_desc || (typeof parsed.breakfast === 'string' ? parsed.breakfast : null);
+          if (desc) mealLines.push('【早餐】' + desc);
+          desc = parsed.lunch_desc || (typeof parsed.lunch === 'string' ? parsed.lunch : null);
+          if (desc) mealLines.push('【午餐】' + desc);
+          desc = parsed.dinner_desc || (typeof parsed.dinner === 'string' ? parsed.dinner : null);
+          if (desc) mealLines.push('【晚餐】' + desc);
+          desc = parsed.snack_desc || (typeof parsed.snack === 'string' ? parsed.snack : null);
+          if (desc) mealLines.push('【加餐】' + desc);
+          var fullNotes = mealLines.concat([parsed.notes]).join('\n');
+          var existing = document.getElementById('edit-notes').value.trim();
           document.getElementById('edit-notes').value = existing ? existing + '\n' + fullNotes : fullNotes;
         }
+
         this.renderFoodLog();
       },
 
