@@ -209,6 +209,10 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
           🎤 语音记录
         </button>
+        <button onclick="app.openAIAdvisor()" class="btn-press bg-[#2D5A45] hover:bg-[#3D6B54] text-white px-6 py-3 rounded-xl font-medium shadow-soft flex items-center gap-2 self-start">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          🤖 AI 顾问
+        </button>
       </header>
 
       <!-- Metabolism Cards -->
@@ -300,6 +304,26 @@
         </div>
       </div>
 
+      <!-- 🔥 今晚运动目标 -->
+      <div class="glass p-6 mb-6 border-l-4 border-forest" id="dash-tonight-card">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-ink/60 text-sm font-medium">🔥 今晚运动目标</p>
+            <p class="font-number text-4xl font-bold text-forest mt-1" id="dash-tonight-kcal">--</p>
+            <p class="text-sm text-ink/60 mt-1" id="dash-tonight-label">kcal 需消耗</p>
+          </div>
+          <div class="text-right text-xs text-ink/40 space-y-1">
+            <p>今日已摄入 <span class="font-number text-ink/70" id="dash-tonight-intake">--</span> kcal</p>
+            <p>基础代谢 -<span class="font-number text-ink/70" id="dash-tonight-bmr">--</span> kcal</p>
+            <p>日需缺口 -<span class="font-number text-ink/70" id="dash-tonight-deficit">--</span> kcal</p>
+          </div>
+        </div>
+        <div class="mt-3 h-3 bg-stone rounded-full overflow-hidden">
+          <div id="dash-tonight-bar" class="h-full rounded-full transition-all duration-500" style="width: 50%; background: var(--forest)"></div>
+        </div>
+        <p class="text-xs text-ink/50 mt-2" id="dash-tonight-tip">--</p>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-12 gap-5 mb-6">
         <!-- Weight Card -->
         <div class="md:col-span-4 glass rounded-3xl p-6 card-hover">
@@ -384,6 +408,20 @@
       <!-- Achievements Panel -->
       <div class="glass p-6 mb-6" id="dash-achievements">
         <!-- rendered by AchievementStore.render() -->
+      </div>
+      <!-- Brand Slogan -->
+      <div class="text-center mb-6 py-2">
+        <p class="text-xs text-ink/30 font-medium tracking-wide">永久免费 · 无广告 · 数据只属于你</p>
+      </div>
+
+      <!-- Weekly TOP -->
+      <div class="glass rounded-3xl p-5 mb-6" id="dash-weekly-top">
+        <h3 class="font-display text-lg font-bold text-ink mb-4">🏆 本周TOP榜</h3>
+        <div class="grid grid-cols-3 gap-3 text-center" id="weekly-top-grid">
+          <div class="p-3 rounded-xl bg-stone/20"><p class="text-2xl">--</p><p class="text-xs text-ink/50 mt-1">最佳控卡日</p></div>
+          <div class="p-3 rounded-xl bg-stone/20"><p class="text-2xl">--</p><p class="text-xs text-ink/50 mt-1">最燃运动日</p></div>
+          <div class="p-3 rounded-xl bg-stone/20"><p class="text-2xl">--</p><p class="text-xs text-ink/50 mt-1">最佳体重日</p></div>
+        </div>
       </div>
 
       <!-- Quick Add -->
@@ -1301,6 +1339,19 @@
     }
     const idb = new IDBStore();
 
+    // ── Food Cache (IDB) ─────────────────────────────────────────────────────
+    const FOOD_CACHE_KEY = 'food-cache-v1';
+    const foodCache = {
+      async get(query) {
+        const key = query.toLowerCase().trim();
+        try { return await idb.get(FOOD_CACHE_KEY, key); } catch { return null; }
+      },
+      async set(query, results) {
+        const key = query.toLowerCase().trim();
+        try { await idb.set(FOOD_CACHE_KEY, key, { results, ts: Date.now() }); } catch {}
+      }
+    };
+
     class HealthStore {
       constructor() {
         this.records = this.load();
@@ -1886,6 +1937,112 @@
         }
       },
 
+      closeOnboarding() {
+        localStorage.setItem('vitality-onboarded-v1', '1');
+        document.getElementById('onboard-modal').classList.add('hidden');
+        // Check streak after onboarding
+        this._showStreakCelebration();
+      },
+      _showStreakCelebration() {
+        const streak = achievements.data.streak || 0;
+        if (streak < 2) return; // Don't show for 0-1 days
+        const todayChecked = localStorage.getItem('vitality-streak-shown-' + todayStr());
+        if (todayChecked) return;
+        localStorage.setItem('vitality-streak-shown-' + todayStr(), '1');
+        
+        const modal = document.getElementById('streak-modal');
+        document.getElementById('streak-days').textContent = streak;
+        document.getElementById('streak-sub').textContent = streak >= 100 ? '天 · 百天王者 👑' :
+          streak >= 60 ? '天 · 自律达人 💎' : streak >= 30 ? '天 · 月度冠军 ⭐' :
+          streak >= 21 ? '天 · 习惯养成 🌟' : streak >= 7 ? '天 · 坚持一周 🔥' : '天';
+        document.getElementById('streak-icon').textContent = streak >= 100 ? '👑' :
+          streak >= 60 ? '💎' : streak >= 30 ? '🏆' : streak >= 21 ? '⭐' : streak >= 7 ? '🔥' : '💪';
+        setTimeout(() => { modal.classList.remove('hidden'); setTimeout(() => modal.classList.add('hidden'), 2500); }, 600);
+      },
+      closeStreakModal() {
+        document.getElementById('streak-modal').classList.add('hidden');
+      },
+      // ── AI Health Advisor ────────────────────────────────────────────────────
+      openAIAdvisor() {
+        document.getElementById('ai-advisor-modal').classList.remove('hidden');
+        document.getElementById('ai-advisor-input').focus();
+      },
+      closeAIAdvisor() {
+        document.getElementById('ai-advisor-modal').classList.add('hidden');
+      },
+      async askAIAdvisor() {
+        const input = document.getElementById('ai-advisor-input');
+        const chat = document.getElementById('ai-advisor-chat');
+        const q = input.value.trim();
+        if (!q) return;
+        const apiKey = this.profile.profile.apiKey;
+        if (!apiKey) { alert('请先在数据管理中配置 DeepSeek API Key'); return; }
+        // Show user message
+        chat.innerHTML += `<div class="flex justify-end"><div class="bg-forest text-white px-4 py-2 rounded-2xl rounded-br-md text-sm max-w-[80%]">${q}</div></div>`;
+        input.value = '';
+        // Show loading
+        const loadingId = 'loading' + Date.now();
+        chat.innerHTML += `<div class="flex justify-start" id="${loadingId}"><div class="bg-stone/30 px-4 py-2 rounded-2xl rounded-bl-md text-sm flex items-center gap-2"><div class="w-3 h-3 border-2 border-forest border-t-transparent rounded-full animate-spin"></div>思考中...</div></div>`;
+        chat.scrollTop = chat.scrollHeight;
+        try {
+          const p = this.profile.profile;
+          const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            signal: AbortSignal.timeout(30000),
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey},
+            body: JSON.stringify({
+              model: this.profile.profile.apiModel || 'deepseek-chat',
+              messages: [
+                {role:'system', content:`你是健康顾问，用户有：${p.gender==='male'?'男':'女'}，${p.age}岁，${p.height}cm，${p.weight}kg。目标体重${p.target}kg。需管理：高血压、高尿酸、脂肪肝、胆囊问题。请用专业但友好的语气回答，限制300字内。`},
+                {role:'user', content: q}
+              ], max_tokens: 800, temperature: 0.7
+            })
+          });
+          const data = await resp.json();
+          const answer = data.choices[0]?.message?.content || '抱歉，暂时无法回答。';
+          document.getElementById(loadingId)?.remove();
+          chat.innerHTML += `<div class="flex justify-start"><div class="bg-stone/30 px-4 py-2 rounded-2xl rounded-bl-md text-sm max-w-[85%]">${answer.replace(/\n/g,'<br>')}</div></div>`;
+        } catch(e) {
+          document.getElementById(loadingId)?.remove();
+          chat.innerHTML += `<div class="flex justify-start"><div class="bg-red-50 text-red-600 px-4 py-2 rounded-2xl text-sm">网络错误，请重试</div></div>`;
+        }
+        chat.scrollTop = chat.scrollHeight;
+      },
+      // ── Weekly TOP Render ───────────────────────────────────────────────────
+      _renderWeeklyTop() {
+        const all = this.store.all().filter(([d]) => d <= todayStr());
+        const last7 = all.slice(-7);
+        if (!last7.length) return;
+        let bestDeficitDay = null, bestDeficit = -Infinity;
+        let bestBurnDay = null, bestBurn = 0;
+        let bestWeightDay = null, bestWeightDelta = Infinity;
+        const p = this.profile.profile;
+        const tdee = calcAdaptiveTDEE(this.store, p).tdee;
+        for (let i = 0; i < last7.length; i++) {
+          const [ds, r] = last7[i];
+          const intake = Number(r.breakfast||0) + Number(r.lunch||0) + Number(r.dinner||0) + Number(r.snack||0);
+          const burn = Number(r.burn) || 0;
+          const deficit = tdee + burn - intake;
+          if (deficit > bestDeficit) { bestDeficit = deficit; bestDeficitDay = ds.slice(5); }
+          if (burn > bestBurn) { bestBurn = burn; bestBurnDay = ds.slice(5); }
+          if (r.weight && !isNaN(Number(r.weight))) {
+            const w = Number(r.weight);
+            if (i > 0) {
+              const prevW = Number(last7[i-1][1].weight);
+              if (!isNaN(prevW) && (prevW - w) < bestWeightDelta && (prevW - w) > 0) {
+                bestWeightDelta = prevW - w;
+                bestWeightDay = ds.slice(5);
+              }
+            }
+          }
+        }
+        const g = document.getElementById('weekly-top-grid');
+        if (!g) return;
+        g.innerHTML = `
+          <div class="p-3 rounded-xl bg-stone/20"><p class="text-lg font-number font-bold text-forest">${bestDeficitDay||'--'}</p><p class="text-xs text-ink/50 mt-1">最佳控卡日<br><span class="text-forest text-xs">${bestDeficit > 0 ? Math.round(bestDeficit) + 'kcal缺口' : '--'}</span></p></div>
+          <div class="p-3 rounded-xl bg-stone/20"><p class="text-lg font-number font-bold text-coral">${bestBurnDay||'--'}</p><p class="text-xs text-ink/50 mt-1">最燃运动日<br><span class="text-coral text-xs">${bestBurn > 0 ? Math.round(bestBurn) + 'kcal' : '--'}</span></p></div>
+          <div class="p-3 rounded-xl bg-stone/20"><p class="text-lg font-number font-bold text-sage">${bestWeightDay||'--'}</p><p class="text-xs text-ink/50 mt-1">最佳体重日<br><span class="text-sage text-xs">${bestWeightDelta < Infinity ? (bestWeightDelta).toFixed(1) + 'kg↓' : '--'}</span></p></div>`;
+      },
       formatDateFull(d) {
         const w = ['日','一','二','三','四','五','六'];
         return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${w[d.getDay()]}`;
@@ -2079,6 +2236,49 @@
         document.getElementById('dash-goal-detail').textContent = goal.daysLeft ?
           `${p.weight}kg → ${p.target}kg，剩 ${goal.daysLeft} 天` : '未设定目标';
 
+        // ─🔥 Tonight Exercise Target ─────────────────────────────────────
+        const requiredDeficit = goal.requiredDaily || 500;
+        const tonightNeed = intake - bmr - requiredDeficit + burn; // burn already done today
+        const tonightEl = document.getElementById('dash-tonight-kcal');
+        const tonightLabel = document.getElementById('dash-tonight-label');
+        const tonightBar = document.getElementById('dash-tonight-bar');
+        const tonightTip = document.getElementById('dash-tonight-tip');
+        const tonightCard = document.getElementById('dash-tonight-card');
+
+        document.getElementById('dash-tonight-intake').textContent = Math.round(intake);
+        document.getElementById('dash-tonight-bmr').textContent = Math.round(bmr);
+        document.getElementById('dash-tonight-deficit').textContent = Math.round(requiredDeficit);
+
+        if (tonightNeed <= 0) {
+          tonightEl.textContent = '✅ 0';
+          tonightLabel.textContent = '今日目标已达成！';
+          tonightBar.style.width = '100%';
+          tonightBar.style.background = 'linear-gradient(90deg, #81B29A, #2D5A45)';
+          tonightTip.textContent = `摄入${Math.round(intake)} - 代谢${Math.round(bmr)} - 缺口${Math.round(requiredDeficit)} = 无需额外运动，保持节奏 👏`;
+          tonightCard.style.borderLeftColor = '#2D5A45';
+        } else if (tonightNeed < 300) {
+          tonightEl.textContent = Math.round(tonightNeed);
+          tonightLabel.textContent = 'kcal 今晚轻松达标';
+          tonightBar.style.width = Math.max(10, 100 - (tonightNeed / 500) * 100) + '%';
+          tonightBar.style.background = 'linear-gradient(90deg, #81B29A, #E07A5F)';
+          tonightTip.textContent = `约${Math.round(tonightNeed / 5)}分钟快走 或 ${Math.round(tonightNeed / 8)}分钟骑车即可。晚饭后散个步就达标 🚶`;
+          tonightCard.style.borderLeftColor = '#E07A5F';
+        } else if (tonightNeed < 600) {
+          tonightEl.textContent = Math.round(tonightNeed);
+          tonightLabel.textContent = 'kcal 今晚需要努力';
+          tonightBar.style.width = Math.max(10, 100 - (tonightNeed / 1000) * 100) + '%';
+          tonightBar.style.background = 'linear-gradient(90deg, #E07A5F, #C85A47)';
+          tonightTip.textContent = `约${Math.round(tonightNeed / 8)}分钟跑步 或 ${Math.round(tonightNeed / 6)}分钟骑车。饭后别躺，动起来！🏃`;
+          tonightCard.style.borderLeftColor = '#C85A47';
+        } else {
+          tonightEl.textContent = Math.round(tonightNeed);
+          tonightLabel.textContent = 'kcal ⚠️ 需大量消耗';
+          tonightBar.style.width = '10%';
+          tonightBar.style.background = 'linear-gradient(90deg, #C85A47, #ff0000)';
+          tonightTip.textContent = `约${Math.round(tonightNeed / 10)}分钟高强度HIIT 或 ${Math.round(tonightNeed / 8)}分钟跑步。建议今晚控制饮食+增加运动 🏋️`;
+          tonightCard.style.borderLeftColor = '#ff0000';
+        }
+
         // Goal progress bar
         this._renderGoalProgress(p, goal, weight);
 
@@ -2178,6 +2378,8 @@
         // Refresh achievements
         achievements.refresh(this.store, p);
         achievements.render('dash-achievements');
+        // Weekly TOP
+        this._renderWeeklyTop();
       },
 
       handleQuickSubmit(e) {
@@ -2947,6 +3149,14 @@
       async searchFoodAPI(query) {
         const loadingEl = document.getElementById('food-search-loading');
         const resultsEl = document.getElementById('food-search-results');
+        // Check cache first
+        const cached = await foodCache.get(query);
+        if (cached && (Date.now() - cached.ts < 86400000)) {
+          loadingEl.classList.add('hidden');
+          this._renderFoodResults(cached.results, resultsEl);
+          resultsEl.classList.remove('hidden');
+          return;
+        }
         loadingEl.classList.remove('hidden');
         resultsEl.classList.add('hidden');
         try {
@@ -2956,22 +3166,35 @@
           if (!data.products || data.products.length === 0) {
             resultsEl.innerHTML = '<p class="text-xs text-ink/50 py-2">未找到匹配食物，请尝试其他关键词或使用手动模式</p>';
           } else {
-            resultsEl.innerHTML = data.products.filter(p => p.product_name_zh || p.product_name).slice(0, 8).map(p => {
-              const name = p.product_name_zh || p.product_name || '未知食物';
-              const cal = p.nutriments && p.nutriments['energy-kcal_100g'] ? Math.round(p.nutriments['energy-kcal_100g']) : '?';
-              const serving = p.serving_size || '100g';
-              return `<button onclick="app.addFoodFromAPI('${name.replace(/'/g, "\\'")}', ${cal === '?' ? 0 : cal}, '${serving}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-forest/5 text-sm border border-stone/50 flex justify-between items-center">
-                <span class="text-ink/80 truncate max-w-[70%]">${name}</span>
-                <span class="text-xs text-forest font-medium">${cal}kcal/${serving}</span>
-              </button>`;
-            }).join('');
+            const results = data.products.filter(p => p.product_name_zh || p.product_name).slice(0, 8);
+            foodCache.set(query, results);
+            this._renderFoodResults(results, resultsEl);
           }
           resultsEl.classList.remove('hidden');
         } catch(e) {
-          resultsEl.innerHTML = '<p class="text-xs text-ink/40 py-2">搜索超时，请检查网络后重试</p>';
-          resultsEl.classList.remove('hidden');
+          // Offline fallback: try stale cache
+          if (cached) {
+            this._renderFoodResults(cached.results, resultsEl);
+            resultsEl.classList.remove('hidden');
+          } else {
+            resultsEl.innerHTML = '<p class="text-xs text-ink/40 py-2">网络不可用 · 已缓存常用食物可离线查询</p>';
+            resultsEl.classList.remove('hidden');
+          }
         }
         loadingEl.classList.add('hidden');
+      },
+      _renderFoodResults(products, el) {
+        el.innerHTML = products.map(p => {
+          const name = p.product_name_zh || p.product_name || '未知食物';
+          const cal = p.nutriments && p.nutriments['energy-kcal_100g'] ? Math.round(p.nutriments['energy-kcal_100g']) : '?';
+          const quality = p.nutrition_grade_fr || '';
+          const gradeIcon = quality === 'a' ? '⭐' : quality === 'b' ? '⭐' : quality === 'c' ? '⭐' : '';
+          const serving = p.serving_size || '100g';
+          return `<button onclick="app.addFoodFromAPI('${name.replace(/'/g, "\\'")}', ${cal === '?' ? 0 : cal}, '${serving}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-forest/5 text-sm border border-stone/50 flex justify-between items-center">
+            <span class="text-ink/80 truncate max-w-[65%]">${gradeIcon} ${name}</span>
+            <span class="text-xs text-forest font-medium">${cal}kcal/${serving}</span>
+          </button>`;
+        }).join('');
       },
 
       addFoodFromAPI(name, cal, serving) {
@@ -3161,7 +3384,14 @@
               });
             });
 
-            let resultHTML = `<p class="font-medium text-purple-700 text-sm mb-3">🤖 DeepSeek 识别结果：</p>`;
+            // Calculate AI confidence (based on how complete the nutrition data is)
+            const hasProtein = parsed.total_protein > 0;
+            const hasFat = parsed.total_fat > 0;
+            const hasCarbs = parsed.total_carbs > 0;
+            const confScore = (hasProtein?1:0) + (hasFat?1:0) + (hasCarbs?1:0);
+            const confStars = confScore >= 3 ? '⭐⭐⭐ 高精度' : confScore >= 2 ? '⭐⭐ 中精度' : '⭐ 低精度';
+            const confColor = confScore >= 3 ? 'text-green-600' : confScore >= 2 ? 'text-amber-600' : 'text-red-500';
+            let resultHTML = `<div class="flex items-center justify-between mb-3"><p class="font-medium text-purple-700 text-sm">🤖 DeepSeek 识别结果</p><span class="text-xs ${confColor}">${confStars}</span></div>`;
             parsed.foods.forEach(f => {
               resultHTML += `<div class="flex justify-between text-sm text-purple-800 py-1 border-b border-purple-100 last:border-0">
                 <div><span class="font-medium">${f.name}</span> ×${f.quantity || 1}${f.unit || '份'}</div>
@@ -3374,6 +3604,12 @@
     window.app = app;
     document.addEventListener('DOMContentLoaded', () => {
       app.init();
+      // Onboarding check
+      if (!localStorage.getItem('vitality-onboarded-v1')) {
+        setTimeout(() => document.getElementById('onboard-modal').classList.remove('hidden'), 500);
+      } else {
+        setTimeout(() => app._showStreakCelebration(), 800);
+      }
       // Food search listener
       const searchInput = document.getElementById('food-search-input');
       if (searchInput) {
@@ -3390,6 +3626,63 @@
       }
     });
   </script>
+  <!-- Onboarding Modal -->
+  <div id="onboard-modal" class="fixed inset-0 z-[100] hidden bg-[#2D2418]/60 backdrop-blur-md flex items-end sm:items-center justify-center">
+    <div class="bg-[#FBFAF5] rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-8 pb-safe animate-bounce-in shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="text-5xl mb-3">🌱</div>
+        <h2 class="font-display text-2xl font-bold text-ink">欢迎来到健康追踪</h2>
+        <p class="text-sm text-ink/60 mt-2">你的 AI 健康伴侣，全程免费 · 无广告</p>
+      </div>
+      <div class="space-y-3 mb-6">
+        <div class="flex items-center gap-3 p-3 rounded-xl bg-[#F3EDE2]">
+          <span class="text-2xl">📸</span>
+          <div><p class="text-sm font-medium text-ink">拍照识别食物</p><p class="text-xs text-ink/50">AI 自动计算热量和营养</p></div>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-xl bg-[#F3EDE2]">
+          <span class="text-2xl">🎤</span>
+          <div><p class="text-sm font-medium text-ink">语音记录日常</p><p class="text-xs text-ink/50">说出来就帮你填好全部数据</p></div>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-xl bg-[#F3EDE2]">
+          <span class="text-2xl">🏅</span>
+          <div><p class="text-sm font-medium text-ink">解锁成就徽章</p><p class="text-xs text-ink/50">连续打卡 7 天获得 🔥 坚持一周</p></div>
+        </div>
+      </div>
+      <button onclick="app.closeOnboarding()" class="btn-press w-full bg-[#2D5A45] hover:bg-[#3D6B54] text-white py-3.5 rounded-xl font-medium text-lg transition">
+        开始我的健康之旅
+      </button>
+      <p class="text-center text-xs text-ink/30 mt-3">数据仅存于你的浏览器 · 永久免费</p>
+    </div>
+  </div>
+  <!-- Streak Celebration Modal -->
+  <div id="streak-modal" class="fixed inset-0 z-[101] hidden bg-[#2D2418]/70 backdrop-blur-md flex items-center justify-center">
+    <div class="text-center animate-bounce-in p-8">
+      <div id="streak-icon" class="text-7xl mb-4">🔥</div>
+      <h2 id="streak-title" class="font-display text-3xl font-bold text-white mb-2">连续打卡</h2>
+      <p id="streak-days" class="text-6xl font-number font-bold text-[#FFD700] mb-4">0</p>
+      <p id="streak-sub" class="text-lg text-white/80 mb-6">天</p>
+      <button onclick="app.closeStreakModal()" class="btn-press bg-white text-ink px-8 py-3 rounded-xl font-medium text-lg transition hover:bg-white/90">
+        继续保持 💪
+      </button>
+    </div>
+  </div>
+  <!-- AI Health Advisor Modal -->
+  <div id="ai-advisor-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-ink/40 backdrop-blur-sm" onclick="app.closeAIAdvisor()"></div>
+    <div class="absolute inset-x-0 bottom-0 md:inset-auto md:relative md:mx-auto md:mt-20 md:max-w-lg bg-[#FBFAF5] rounded-t-3xl md:rounded-3xl shadow-2xl flex flex-col" style="max-height:80vh">
+      <div class="p-5 border-b border-stone flex items-center justify-between">
+        <h3 class="font-display text-xl font-bold text-ink">🤖 AI 健康顾问</h3>
+        <button onclick="app.closeAIAdvisor()" class="btn-press w-8 h-8 rounded-lg bg-stone/50 flex items-center justify-center">✕</button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4 space-y-3" id="ai-advisor-chat" style="min-height:200px">
+        <div class="p-3 rounded-xl bg-stone/30 text-sm text-ink/60">问我任何健康问题：饮食建议、运动方案、疾病管理...</div>
+      </div>
+      <div class="p-4 border-t border-stone flex gap-2">
+        <input type="text" id="ai-advisor-input" placeholder="问AI健康顾问..." class="flex-1 px-4 py-2.5 rounded-xl border border-stone bg-white text-sm focus:outline-none focus:border-forest" onkeydown="if(event.key==='Enter')app.askAIAdvisor()">
+        <button onclick="app.askAIAdvisor()" class="btn-press bg-forest hover:bg-moss text-white px-5 py-2.5 rounded-xl text-sm font-medium">发送</button>
+      </div>
+    </div>
+  </div>
   <!-- Food Capture Modal -->
   <div id="food-modal" class="fixed inset-0 z-50 hidden">
     <div class="absolute inset-0 bg-ink/40 backdrop-blur-sm" onclick="app.closeFoodCapture()"></div>
