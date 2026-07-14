@@ -428,26 +428,39 @@
         </div>
       </div>
 
-      <!-- Daily Goal: 7-day plan vs actual -->
+      <!-- Monthly Goal: all months to target -->
       <div class="glass rounded-3xl p-5 card-hover">
-        <h3 class="font-display text-lg font-bold text-ink mb-3">每日目标对比 · 近7天</h3>
-        <div class="h-56"><canvas id="chart-daily-goal"></canvas></div>
-        <div id="daily-goal-summary" class="mt-3 text-center"></div>
-        <div class="mt-3 flex gap-4 text-xs text-ink/50 justify-center">
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 达标</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#dc2626"></span> 未达标</div>
+        <h3 class="font-display text-lg font-bold text-ink mb-3">月度减重目标 <span class="text-sm font-normal text-ink/40">95kg → 75kg · 至12月31日</span></h3>
+        <div class="h-64"><canvas id="chart-monthly-goal"></canvas></div>
+        <div id="monthly-goal-summary" class="mt-3 text-center"></div>
+        <div class="mt-2 flex gap-4 text-xs text-ink/50 justify-center">
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 月度计划</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#f59e0b"></span> 计划月均</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 实际月均</div>
         </div>
       </div>
 
-      <!-- Weekly Goal: 4-week plan vs actual -->
+      <!-- Weekly Goal: last 4 weeks plan vs actual -->
       <div class="glass rounded-3xl p-5 card-hover mt-5">
-        <h3 class="font-display text-lg font-bold text-ink mb-3">每周目标对比 · 近4周</h3>
+        <h3 class="font-display text-lg font-bold text-ink mb-3">每周减重进度 · 近4周</h3>
         <div class="h-56"><canvas id="chart-weekly-goal"></canvas></div>
         <div id="weekly-goal-summary" class="mt-3 text-center"></div>
-        <div class="mt-3 flex gap-4 text-xs text-ink/50 justify-center">
+        <div class="mt-2 flex gap-4 text-xs text-ink/50 justify-center">
           <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划周均</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#f59e0b"></span> 计划线</div>
           <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 实际周均</div>
+        </div>
+      </div>
+
+      <!-- Daily Goal: last 7 days plan vs actual -->
+      <div class="glass rounded-3xl p-5 card-hover mt-5">
+        <h3 class="font-display text-lg font-bold text-ink mb-3">每日体重目标 · 近7天</h3>
+        <div class="h-56"><canvas id="chart-daily-goal"></canvas></div>
+        <div id="daily-goal-summary" class="mt-3 text-center"></div>
+        <div class="mt-2 flex gap-4 text-xs text-ink/50 justify-center">
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划体重</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 达标</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#dc2626"></span> 未达标</div>
         </div>
       </div>
 
@@ -2444,94 +2457,187 @@
         this.makeTrajectoryChart('chart-trajectory');
       },
 
-      renderMiniCharts() {
-        this.makeDailyGoalChart();
+renderMiniCharts() {
+        this.makeMonthlyGoalChart();
         this.makeWeeklyGoalChart();
+        this.makeDailyGoalChart();
         var p = this.profile.profile;
         achievements.refresh(this.store, p);
         achievements.render('dash-achievements');
         this._renderWeeklyTop();
       },
 
-      makeDailyGoalChart() {
-        var ctx = document.getElementById('chart-daily-goal');
+      // ── Shared plan calc: line from first weight to target weight by target date ──
+      _getPlanData() {
+        var p = this.profile.profile;
+        var targetDate = new Date(p.targetDate + 'T00:00:00');
+        var now = new Date();
+        var targetW = Number(p.target);
+        var allKeys = Object.keys(this.store.records || {}).sort();
+        var startDate = now, startW = Number(p.weight);
+        for (var i = 0; i < allKeys.length; i++) {
+          var r = this.store.get(allKeys[i]);
+          if (r && r.weight) { startDate = new Date(allKeys[i] + 'T00:00:00'); startW = Number(r.weight); break; }
+        }
+        var totalDays = Math.max(1, Math.ceil((targetDate - startDate) / 86400000));
+        var totalLoss = startW - targetW;
+        var dailyRate = totalDays > 0 ? totalLoss / totalDays : 0;
+
+        // Compute plan weight for any date
+        var planWeight = function(dateStr) {
+          var d = new Date(dateStr + 'T00:00:00');
+          var days = Math.max(0, Math.ceil((d - startDate) / 86400000));
+          days = Math.min(days, totalDays);
+          return startW - dailyRate * days;
+        };
+
+        // Compute plan weight for given days offset from start
+        var planAtDay = function(dayOffset) {
+          var d = Math.min(Math.max(0, dayOffset), totalDays);
+          return startW - dailyRate * d;
+        };
+
+        return {
+          startDate: startDate, startW: startW,
+          targetDate: targetDate, targetW: targetW,
+          totalDays: totalDays, totalLoss: totalLoss, dailyRate: dailyRate,
+          planWeight: planWeight, planAtDay: planAtDay
+        };
+      },
+
+      makeMonthlyGoalChart() {
+        var ctx = document.getElementById('chart-monthly-goal');
         if (!ctx) return;
-        if (this.charts['chart-daily-goal']) this.charts['chart-daily-goal'].destroy();
+        if (this.charts['chart-monthly-goal']) this.charts['chart-monthly-goal'].destroy();
 
         var p = this.profile.profile;
         if (!p.target || !p.targetDate) return;
-        var startW = Number(p.weight);
-        var targetW = Number(p.target);
-        var targetDate = new Date(p.targetDate + 'T00:00:00');
-        var now = new Date();
+        var plan = this._getPlanData();
+        if (!plan) return;
 
-        // Find first weight date
-        var allKeys = Object.keys(this.store.records || {}).sort();
-        var firstWDate = null, firstW = startW;
-        for (var i = 0; i < allKeys.length; i++) {
-          var r = this.store.get(allKeys[i]);
-          if (r && r.weight) { firstWDate = allKeys[i]; firstW = Number(r.weight); break; }
-        }
-        if (!firstWDate) firstWDate = now.toISOString().slice(0, 10);
-        var planStart = new Date(firstWDate + 'T00:00:00');
-        var planTotal = Math.max(1, Math.ceil((targetDate - planStart) / 86400000));
-
-        var labels = [];
-        var planVals = [];
-        var actualVals = [];
-
-        for (var i = 6; i >= 0; i--) {
-          var d = new Date(); d.setDate(d.getDate() - i);
-          var dateStr = fmtDate(d);
-          labels.push(dateStr.slice(5));
-          var rec = this.store.get(dateStr);
-          actualVals.push(rec && rec.weight ? Number(rec.weight) : null);
-          var dayIdx = Math.max(0, Math.ceil((d - planStart) / 86400000));
-          planVals.push(firstW - (firstW - targetW) * Math.min(dayIdx, planTotal) / planTotal);
+        // Build month buckets from startDate to targetDate
+        var months = [];
+        var d = new Date(plan.startDate);
+        d.setDate(1); // start of month
+        while (d <= plan.targetDate) {
+          months.push({ y: d.getFullYear(), m: d.getMonth() + 1, key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') });
+          d.setMonth(d.getMonth() + 1);
         }
 
-        var barColors = actualVals.map(function(v, idx) {
-          if (v == null) return '#cbd5e1';
-          return v <= planVals[idx] + 0.05 ? '#16a34a' : '#dc2626';
+        // Collect actual weights per month
+        var allEntries = this.store.all().sort(function(a, b) { return a[0].localeCompare(b[0]); });
+        var monthData = {};
+        months.forEach(function(mo) { monthData[mo.key] = []; });
+        allEntries.forEach(function(a) {
+          var dy = parseInt(a[0].slice(0, 4)), dm = parseInt(a[0].slice(5, 7));
+          var key = dy + '-' + String(dm).padStart(2, '0');
+          if (monthData[key] != null && a[1].weight) {
+            monthData[key].push(Number(a[1].weight));
+          }
         });
 
-        // ── Digital summary: how far ahead/behind today vs plan ──
-        var todayActual = actualVals[6]; // last element = today
-        var todayPlan = planVals[6];
-        var diff = todayActual != null ? todayActual - todayPlan : null;
-        var summaryEl = document.getElementById('daily-goal-summary');
-        if (summaryEl && diff != null) {
-          var abs = Math.abs(diff).toFixed(1);
-          if (diff > 0.05) {
-            summaryEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">+' + abs + ' kg</span><br><span class="text-xs text-ink/50">今日体重高于计划</span>';
-          } else if (diff < -0.05) {
-            summaryEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">' + diff.toFixed(1) + ' kg</span><br><span class="text-xs text-ink/50">今日体重低于计划</span>';
+        var labels = [];
+        var planAvgs = [];
+        var actualAvgs = [];
+        months.forEach(function(mo) {
+          labels.push(mo.m + '月');
+          // Plan: average of plan values for days 1 and 15 of this month
+          var midDay = plan.startW - plan.dailyRate * Math.max(0, Math.ceil((new Date(mo.y, mo.m - 1, 15) - plan.startDate) / 86400000));
+          // Better: plan weight at midpoint of month
+          var d1 = new Date(mo.y, mo.m - 1, 1);
+          var d15 = new Date(mo.y, mo.m - 1, 15);
+          var plan1 = plan.planWeight(d1.toISOString().slice(0, 10));
+          var plan15 = plan.planWeight(d15.toISOString().slice(0, 10));
+          planAvgs.push(Math.round(((plan1 + plan15) / 2) * 10) / 10);
+
+          var w = monthData[mo.key];
+          if (w.length > 0) {
+            var avg = w.reduce(function(s, v) { return s + v; }, 0) / w.length;
+            actualAvgs.push(Math.round(avg * 10) / 10);
           } else {
-            summaryEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">今日体重与计划一致</span>';
+            actualAvgs.push(null);
           }
-        } else if (summaryEl) {
-          summaryEl.innerHTML = '<span class="text-sm text-ink/40">今日暂无体重数据</span>';
+        });
+
+        // Digital summary: latest month gap
+        var sumEl = document.getElementById('monthly-goal-summary');
+        if (sumEl) {
+          var lastActual = null, lastPlan = null;
+          for (var i = actualAvgs.length - 1; i >= 0; i--) {
+            if (actualAvgs[i] != null) { lastActual = actualAvgs[i]; lastPlan = planAvgs[i]; break; }
+          }
+          if (lastActual != null) {
+            var diff = lastActual - lastPlan;
+            var abs = Math.abs(diff).toFixed(1);
+            if (diff > 0.05) {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">落后 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本月均值高于计划目标</span>';
+            } else if (diff < -0.05) {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">超额 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本月均值低于计划目标</span>';
+            } else {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">本月均值与计划一致</span>';
+            }
+          } else {
+            sumEl.innerHTML = '<span class="text-sm text-ink/40">本月暂无记录</span>';
+          }
         }
 
-        // ── Chart ──
-        this.charts['chart-daily-goal'] = new Chart(ctx, {
+        this.charts['chart-monthly-goal'] = new Chart(ctx, {
           type: 'bar',
           data: {
             labels: labels,
             datasets: [
-              { label: '实际', data: actualVals, backgroundColor: barColors, borderRadius: 4, barPercentage: 0.65, categoryPercentage: 0.8, order: 2 },
-              { label: '计划', type: 'scatter', data: planVals.map(function(v, idx) { return {x: idx, y: v}; }),
-                borderColor: '#1e3a5f', backgroundColor: '#1e3a5f', pointRadius: 5, pointHoverRadius: 7,
-                pointStyle: 'rectRot', showLine: true, borderWidth: 2.5, borderDash: [6,4], fill: false, order: 1 }
+              {
+                label: '计划目标', type: 'scatter',
+                data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
+                borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+                pointRadius: 7, pointHoverRadius: 9, pointStyle: 'rectRot',
+                showLine: true, borderWidth: 3, borderDash: [8, 5],
+                fill: false, order: 1
+              },
+              {
+                label: '实际月均', type: 'line',
+                data: planAvgs, borderColor: '#1e3a5f', borderWidth: 2.5,
+                pointRadius: 0, fill: false, tension: 0, order: 2,
+                borderDash: [4, 3]
+              },
+              {
+                label: '实际月均',
+                data: actualAvgs,
+                backgroundColor: actualAvgs.map(function(v, idx) {
+                  if (v == null) return '#cbd5e1';
+                  return v <= planAvgs[idx] + 0.05 ? '#16a34a' : '#dc2626';
+                }),
+                borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.7, order: 3
+              }
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { display: false } },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function(item) {
+                    if (item.dataset.label === '计划目标') return '月度计划: ' + item.raw.y.toFixed(1) + ' kg';
+                    if (item.dataset.label === '实际月均') {
+                      if (item.raw == null) return '本月暂无记录';
+                      var idx = item.dataIndex;
+                      var diff = item.raw - planAvgs[idx];
+                      var tag = diff > 0.05 ? ' (落后' + diff.toFixed(1) + 'kg)' : diff < -0.05 ? ' (超额' + Math.abs(diff).toFixed(1) + 'kg)' : ' (持平)';
+                      return '月均: ' + item.raw.toFixed(1) + ' kg' + tag;
+                    }
+                    return '';
+                  }
+                }
+              }
+            },
             scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 9 }, color: '#64748b' } },
-              y: { grid: { color: '#e2e8f0', lineWidth: 0.5 }, ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' } }
+              x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#475569' } },
+              y: {
+                grid: { color: '#e2e8f0', lineWidth: 0.5 },
+                ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' }
+              }
             }
           }
         });
@@ -2544,26 +2650,14 @@
 
         var p = this.profile.profile;
         if (!p.target || !p.targetDate) return;
-        var startW = Number(p.weight);
-        var targetW = Number(p.target);
-        var targetDate = new Date(p.targetDate + 'T00:00:00');
-        var now = new Date();
+        var plan = this._getPlanData();
+        if (!plan) return;
 
-        // First weight date
-        var allKeys = Object.keys(this.store.records || {}).sort();
-        var firstWDate = null, firstW = startW;
-        for (var i = 0; i < allKeys.length; i++) {
-          var r = this.store.get(allKeys[i]);
-          if (r && r.weight) { firstWDate = allKeys[i]; firstW = Number(r.weight); break; }
-        }
-        if (!firstWDate) firstWDate = now.toISOString().slice(0, 10);
-        var planStart = new Date(firstWDate + 'T00:00:00');
-        var planTotal = Math.max(1, Math.ceil((targetDate - planStart) / 86400000));
-
-        // Group by ISO week
+        // Group all records by ISO week
         function isoWeek(str) {
           var d = new Date(str + 'T00:00:00');
-          var dn = d.getDay() || 7; d.setDate(d.getDate() + 4 - dn);
+          var dn = d.getDay() || 7;
+          d.setDate(d.getDate() + 4 - dn);
           var ys = new Date(d.getFullYear(), 0, 1);
           return d.getFullYear() + '-W' + String(Math.ceil(((d - ys) / 86400000 + 1) / 7)).padStart(2, '0');
         }
@@ -2578,46 +2672,75 @@
         });
 
         var wSorted = Object.entries(weeks).sort(function(a, b) { return a[0].localeCompare(b[0]); }).slice(-4);
-        var labels = [], actualAvgs = [], planAvgs = [];
+
+        var labels = [], planAvgs = [], actualAvgs = [];
         wSorted.forEach(function(entry) {
           var data = entry[1];
           labels.push(entry[0].split('-W')[1]);
-          var avgW = data.weights.length ? Math.round(data.weights.reduce(function(s, w) { return s + w; }, 0) / data.weights.length * 10) / 10 : null;
-          actualAvgs.push(avgW);
-          var mid = data.dates[Math.floor(data.dates.length / 2)];
-          var midD = mid ? new Date(mid + 'T00:00:00') : now;
-          var days = Math.max(0, Math.ceil((midD - planStart) / 86400000));
-          planAvgs.push(Math.round((firstW - (firstW - targetW) * Math.min(days, planTotal) / planTotal) * 10) / 10);
+
+          // Weekly plan weight at mid-week
+          var midDateStr = data.dates[Math.floor(data.dates.length / 2)];
+          planAvgs.push(plan.planWeight(midDateStr));
+
+          // Weekly actual average
+          if (data.weights.length > 0) {
+            var avg = data.weights.reduce(function(s, v) { return s + v; }, 0) / data.weights.length;
+            actualAvgs.push(Math.round(avg * 10) / 10);
+          } else {
+            actualAvgs.push(null);
+          }
         });
 
-        // ── Digital summary: latest week gap ──
-        var lastActual = actualAvgs[actualAvgs.length - 1];
-        var lastPlan = planAvgs[planAvgs.length - 1];
-        var wDiff = (lastActual != null) ? lastActual - lastPlan : null;
+        // Digital summary
         var sumEl = document.getElementById('weekly-goal-summary');
-        if (sumEl && wDiff != null) {
-          var abs = Math.abs(wDiff).toFixed(1);
-          if (wDiff > 0.05) {
-            sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">+' + abs + ' kg</span><br><span class="text-xs text-ink/50">本周均值高于计划</span>';
-          } else if (wDiff < -0.05) {
-            sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">' + wDiff.toFixed(1) + ' kg</span><br><span class="text-xs text-ink/50">本周均值低于计划</span>';
-          } else {
-            sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">本周均值与计划一致</span>';
+        if (sumEl) {
+          var lastA = null, lastP = null;
+          for (var i = actualAvgs.length - 1; i >= 0; i--) {
+            if (actualAvgs[i] != null) { lastA = actualAvgs[i]; lastP = planAvgs[i]; break; }
           }
-        } else if (sumEl) {
-          sumEl.innerHTML = '<span class="text-sm text-ink/40">本周暂无数据</span>';
+          if (lastA != null) {
+            var diff = lastA - lastP;
+            var abs = Math.abs(diff).toFixed(1);
+            if (diff > 0.05) {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">落后 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本周均值高于计划</span>';
+            } else if (diff < -0.05) {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">超额 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本周均值低于计划</span>';
+            } else {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">本周均值与计划一致</span>';
+            }
+          } else {
+            sumEl.innerHTML = '<span class="text-sm text-ink/40">本周暂无记录</span>';
+          }
         }
 
-        // ── Chart ──
         this.charts['chart-weekly-goal'] = new Chart(ctx, {
           type: 'bar',
           data: {
             labels: labels.map(function(l) { return 'W' + l; }),
             datasets: [
-              { label: '实际周均', data: actualAvgs, backgroundColor: '#16a34a', borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.6, order: 2 },
-              { label: '计划周均', type: 'scatter', data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
-                borderColor: '#1e3a5f', backgroundColor: '#1e3a5f', pointRadius: 6, pointHoverRadius: 8,
-                pointStyle: 'rectRot', showLine: true, borderWidth: 2.5, borderDash: [6,4], fill: false, order: 1 }
+              {
+                label: '周计划', type: 'scatter',
+                data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
+                borderColor: '#f59e0b', backgroundColor: '#f59e0b',
+                pointRadius: 6, pointHoverRadius: 8, pointStyle: 'rectRot',
+                showLine: true, borderWidth: 2.5, borderDash: [6, 4],
+                fill: false, order: 1
+              },
+              {
+                label: '实际周均', type: 'scatter',
+                data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
+                borderColor: '#1e3a5f', borderWidth: 2, pointRadius: 0,
+                fill: false, tension: 0, order: 2, borderDash: [3, 2]
+              },
+              {
+                label: '实际周均',
+                data: actualAvgs,
+                backgroundColor: actualAvgs.map(function(v, idx) {
+                  if (v == null) return '#cbd5e1';
+                  return v <= planAvgs[idx] + 0.05 ? '#16a34a' : '#dc2626';
+                }),
+                borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.6, order: 3
+              }
             ]
           },
           options: {
@@ -2626,1227 +2749,91 @@
             plugins: { legend: { display: false } },
             scales: {
               x: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' }, color: '#475569' } },
-              y: { grid: { color: '#e2e8f0', lineWidth: 0.5 }, ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' } }
-            }
-          }
-        });
-      },
-
-      handleQuickSubmit(e) {
-        e.preventDefault();
-        const date = document.getElementById('quick-date').value;
-        const existing = this.store.get(date) || {};
-        const rec = {
-          ...existing,
-          weight: document.getElementById('quick-weight').value || existing.weight || '',
-          breakfast: existing.breakfast || '', lunch: existing.lunch || '', dinner: existing.dinner || '', snack: existing.snack || '',
-          burn: document.getElementById('quick-burn').value || existing.burn || '',
-          water: document.getElementById('quick-water').value || existing.water || '',
-          bowelCount: existing.bowelCount || '', bowelStatus: existing.bowelStatus || '', notes: existing.notes || ''
-        };
-        const intake = document.getElementById('quick-intake').value;
-        if (intake) {
-          const total = Number(intake);
-          rec.breakfast = String(Math.round(total * 0.3));
-          rec.lunch = String(Math.round(total * 0.4));
-          rec.dinner = String(Math.round(total * 0.3));
-        }
-        this.store.set(date, rec);
-        e.target.reset();
-        document.getElementById('quick-date').value = todayStr();
-        this.refresh();
-      },
-      syncAppleWatch() {
-        const burn = document.getElementById('quick-apple-burn').value;
-        const steps = document.getElementById('quick-apple-steps').value;
-        const dateStr = document.getElementById('quick-date').value || todayStr();
-        if (!burn && !steps) {
-          // Try HealthKit auto-sync
-          syncAppleHealth(this.store, dateStr).then(r => {
-            if (r && (r.steps || r.weight)) {
-              if (r.steps) document.getElementById('quick-apple-steps').value = r.steps;
-              alert('已从健康数据同步：' + [r.steps ? r.steps + '步' : '', r.weight ? r.weight + 'kg' : ''].filter(Boolean).join(', '));
-            }
-          });
-          return;
-        }
-        // Open today's edit panel and pre-fill
-        this.openTodayEdit();
-        if (burn) {
-          const cur = Number(document.getElementById('edit-burn').value) || 0;
-          document.getElementById('edit-burn').value = cur + Number(burn);
-        }
-        if (steps) {
-          // Estimate: ~0.04 kcal per step for 95kg person
-          const stepsCal = Math.round(Number(steps) * 0.04);
-          const existing = document.getElementById('edit-notes').value.trim();
-          document.getElementById('edit-notes').value = existing
-            ? existing + '\nApple Watch: ' + steps + '步(约' + stepsCal + 'kcal)'
-            : 'Apple Watch: ' + steps + '步(约' + stepsCal + 'kcal)';
-        }
-        document.getElementById('quick-apple-burn').value = '';
-        document.getElementById('quick-apple-steps').value = '';
-      },
-
-      // ── Daily View ────────────────────────────────────────────────────────
-      setDailyMode(mode) {
-        this.dailyMode = mode;
-        document.getElementById('daily-calendar').classList.toggle('hidden', mode !== 'calendar');
-        document.getElementById('daily-list').classList.toggle('hidden', mode !== 'list');
-        document.getElementById('btn-calendar').className = mode === 'calendar' ? 'px-4 py-2 rounded-lg text-sm font-medium bg-forest text-white transition' : 'px-4 py-2 rounded-lg text-sm font-medium text-ink/70 hover:bg-white transition';
-        document.getElementById('btn-list').className = mode === 'list' ? 'px-4 py-2 rounded-lg text-sm font-medium bg-forest text-white transition' : 'px-4 py-2 rounded-lg text-sm font-medium text-ink/70 hover:bg-white transition';
-        if (mode === 'calendar') this.renderCalendar();
-        else this.renderList();
-      },
-
-      renderDaily() {
-        this.setDailyMode(this.dailyMode);
-      },
-
-      changeMonth(delta) {
-        this.calendarDate.setMonth(this.calendarDate.getMonth() + delta);
-        this.renderCalendar();
-      },
-
-      renderCalendar() {
-        const y = this.calendarDate.getFullYear();
-        const m = this.calendarDate.getMonth();
-        document.getElementById('calendar-title').textContent = `${y}年${m+1}月`;
-        const grid = document.getElementById('calendar-grid');
-        grid.innerHTML = '';
-
-        const first = new Date(y, m, 1);
-        const startDay = (first.getDay() || 7) - 1;
-        const daysInMonth = new Date(y, m+1, 0).getDate();
-
-        for (let i = 0; i < startDay; i++) {
-          grid.innerHTML += '<div class="calendar-day empty rounded-xl"></div>';
-        }
-        const today = todayStr();
-        for (let d = 1; d <= daysInMonth; d++) {
-          const ds = fmtDate(new Date(y, m, d));
-          const rec = this.store.get(ds);
-          const has = !!rec;
-          const sel = ds === today ? ' selected' : '';
-          const hasCls = has ? ' has-data' : '';
-          const dot = has ? '<div class="w-1.5 h-1.5 rounded-full bg-coral mx-auto mt-1"></div>' : '';
-          grid.innerHTML += `
-            <div class="calendar-day${sel}${hasCls} rounded-xl p-1 flex flex-col justify-center items-center relative" onclick="app.openEdit('${ds}')">
-              <span class="font-number text-sm font-medium">${d}</span>
-              ${dot}
-            </div>`;
-        }
-      },
-
-      renderList() {
-        const p = this.profile.profile;
-        const tdee = calcAdaptiveTDEE(this.store, p).tdee;
-        const tbody = document.getElementById('daily-list-body');
-        const all = this.store.all().reverse();
-        if (!all.length) {
-          tbody.innerHTML = '<tr><td colspan="9" class="px-5 py-8 text-center text-ink/50">暂无记录，先去仪表盘添加吧</td></tr>';
-          return;
-        }
-        tbody.innerHTML = all.map(([d, r]) => {
-          const intake = sum([r.breakfast, r.lunch, r.dinner, r.snack]);
-          const burn = Number(r.burn) || 0;
-          const deficit = tdee ? Math.round(tdee + burn - intake) : '--';
-          return `
-            <tr class="hover:bg-white/40 transition">
-              <td class="px-5 py-3 font-medium text-forest">${d}</td>
-              <td class="px-4 py-3 font-number">${r.weight || '-'}</td>
-              <td class="px-4 py-3 font-number">${intake || '-'}</td>
-              <td class="px-4 py-3 font-number text-sage">${burn || '-'}</td>
-              <td class="px-4 py-3 font-number ${deficit > 0 ? 'text-forest' : 'text-coral'}">${deficit}</td>
-              <td class="px-4 py-3 font-number">${r.water || '-'}</td>
-              <td class="px-4 py-3">${r.bowelCount || '-'}</td>
-              <td class="px-4 py-3 text-ink/70 max-w-[200px] truncate">${r.notes || '-'}</td>
-              <td class="px-4 py-3">
-                <button onclick="app.openEdit('${d}')" class="text-forest hover:text-coral font-medium text-sm">编辑</button>
-              </td>
-            </tr>`;
-        }).join('');
-      },
-
-      // ── Edit Modal ────────────────────────────────────────────────────────
-      openTodayEdit() {
-        this.openEdit(todayStr());
-      },
-      openEdit(dateStr) {
-        this.editDate = dateStr;
-        const rec = this.store.get(dateStr) || {};
-        document.getElementById('edit-date').value = dateStr;
-        document.getElementById('edit-date-label').textContent = dateStr;
-        document.getElementById('edit-weight').value = rec.weight || '';
-        document.getElementById('edit-breakfast').value = rec.breakfast || '';
-        document.getElementById('edit-lunch').value = rec.lunch || '';
-        document.getElementById('edit-dinner').value = rec.dinner || '';
-        document.getElementById('edit-snack').value = rec.snack || '';
-        document.getElementById('edit-burn').value = rec.burn || '';
-        document.getElementById('edit-water').value = rec.water || '';
-        document.getElementById('edit-bowel-count').value = rec.bowelCount || '';
-        document.getElementById('edit-bowel-status').value = rec.bowelStatus || '';
-        document.getElementById('edit-notes').value = rec.notes || '';
-        this.renderFoodLog();
-        const modal = document.getElementById('edit-modal');
-        const panel = document.getElementById('edit-panel');
-        modal.classList.remove('hidden');
-        setTimeout(() => panel.classList.remove('translate-x-full'), 10);
-      },
-      closeEdit() {
-        const panel = document.getElementById('edit-panel');
-        panel.classList.add('translate-x-full');
-        setTimeout(() => document.getElementById('edit-modal').classList.add('hidden'), 300);
-      },
-      renderFoodLog() {
-        const notes = document.getElementById('edit-notes').value || '';
-        const section = document.getElementById('food-log-section');
-        const list = document.getElementById('food-log-list');
-        list.innerHTML = '';
-        const lines = notes.split('\n').filter(l => /^【(?:早餐|午餐|晚餐|加餐)】/.test(l.trim()));
-        if (lines.length === 0) { section.classList.add('hidden'); return; }
-        section.classList.remove('hidden');
-        const mealMap = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
-        const revMealMap = Object.fromEntries(Object.entries(mealMap).map(([k,v]) => [v,k]));
-        lines.forEach(line => {
-          const trimmed = line.trim();
-          const match = trimmed.match(/^【(早餐|午餐|晚餐|加餐)】(.*)$/);
-          if (!match) return;
-          const [, mealLabel, desc] = match;
-          const inputIds = { '早餐': 'edit-breakfast', '午餐': 'edit-lunch', '晚餐': 'edit-dinner', '加餐': 'edit-snack' };
-          const row = document.createElement('div');
-          row.className = 'flex items-center gap-2 bg-white/60 rounded-xl p-3';
-          row.innerHTML = `
-            <span class="text-xs font-medium px-2 py-1 bg-forest/10 text-forest rounded-lg flex-shrink-0">${mealLabel}</span>
-            <span class="text-xs text-ink/70 flex-1 truncate">${desc.substring(0, 40)}</span>
-            <button type="button" class="text-ink/30 hover:text-red-500 transition flex-shrink-0" title="删除此餐记录">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </button>
-          `;
-          row.onclick = () => this.deleteFoodLog(mealLabel, trimmed);
-          list.appendChild(row);
-        });
-      },
-      deleteFoodLog(mealLabel, lineToRemove) {
-        const mealKeys = { '早餐': 'breakfast', '午餐': 'lunch', '晚餐': 'dinner', '加餐': 'snack' };
-        const inputIds = { '早餐': 'edit-breakfast', '午餐': 'edit-lunch', '晚餐': 'edit-dinner', '加餐': 'edit-snack' };
-        // Remove the line from notes
-        const notesEl = document.getElementById('edit-notes');
-        const lines = notesEl.value.split('\n');
-        const cleaned = lines.filter(l => l.trim() !== lineToRemove);
-        notesEl.value = cleaned.join('\n');
-        // Zero out the corresponding calorie field
-        const inputId = inputIds[mealLabel];
-        if (inputId) document.getElementById(inputId).value = 0;
-        // Re-render
-        this.renderFoodLog();
-      },
-      handleEditSubmit(e) {
-        e.preventDefault();
-        const rec = {
-          weight: document.getElementById('edit-weight').value,
-          breakfast: document.getElementById('edit-breakfast').value,
-          lunch: document.getElementById('edit-lunch').value,
-          dinner: document.getElementById('edit-dinner').value,
-          snack: document.getElementById('edit-snack').value,
-          burn: document.getElementById('edit-burn').value,
-          water: document.getElementById('edit-water').value,
-          bowelCount: document.getElementById('edit-bowel-count').value,
-          bowelStatus: document.getElementById('edit-bowel-status').value,
-          notes: document.getElementById('edit-notes').value,
-        };
-        this.store.set(this.editDate, rec);
-        this.closeEdit();
-        this.refresh();
-      },
-      deleteRecord() {
-        if (confirm('确定删除这条记录？')) {
-          this.store.delete(this.editDate);
-          this.closeEdit();
-          this.refresh();
-        }
-      },
-
-      // ── Voice Input ──────────────────────────────────────────────────────────
-      _voiceRecognition: null,
-      _voiceListening: false,
-
-      startVoiceInput() {
-        if (this._voiceListening) {
-          this.stopVoiceInput();
-          return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-          this._fallbackTextInput();
-          return;
-        }
-
-        this._voiceListening = true;
-        const btn = document.getElementById('voice-btn');
-        const btnText = document.getElementById('voice-btn-text');
-        btn.classList.add('bg-purple-500', 'text-white', 'border-purple-500');
-        btn.classList.remove('border-purple-400', 'text-purple-600');
-        btnText.textContent = '停止录音';
-        document.getElementById('voice-status').classList.remove('hidden');
-        document.getElementById('voice-status-text').textContent = '正在倾听...';
-
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'zh-CN';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        this._voiceRecognition = recognition;
-
-        recognition.onresult = (event) => {
-          const transcript = event.results[0][0].transcript;
-          document.getElementById('voice-status-text').textContent = 'AI 解析中...';
-          this._parseVoiceText(transcript);
-        };
-
-        recognition.onerror = (event) => {
-          this.stopVoiceInput();
-          document.getElementById('voice-status-text').textContent = '识别失败: ' + event.error;
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2000);
-          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            this._fallbackTextInput();
-          }
-        };
-
-        recognition.onend = () => {
-          if (this._voiceListening) {
-            this.stopVoiceInput();
-          }
-        };
-
-        recognition.start();
-      },
-
-      stopVoiceInput() {
-        this._voiceListening = false;
-        if (this._voiceRecognition) {
-          try { this._voiceRecognition.stop(); } catch(e) {}
-          this._voiceRecognition = null;
-        }
-        const btn = document.getElementById('voice-btn');
-        const btnText = document.getElementById('voice-btn-text');
-        btn.classList.remove('bg-purple-500', 'text-white', 'border-purple-500');
-        btn.classList.add('border-purple-400', 'text-purple-600');
-        btnText.textContent = '语音记录';
-      },
-
-      _fallbackTextInput() {
-        const text = prompt('语音不可用。请直接输入今天的数据描述（例如：体重95公斤，早餐吃了两个鸡蛋一碗燕麦约400卡，午餐鸡胸肉沙拉500卡，运动消耗300卡，喝了2000毫升水，今天状态不错）');
-        if (text && text.trim()) {
-          document.getElementById('voice-status').classList.remove('hidden');
-          document.getElementById('voice-status-text').textContent = 'AI 解析中...';
-          this._parseVoiceText(text.trim());
-        }
-      },
-
-      async _parseVoiceText(text) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
-          const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + this.profile.profile.apiKey
-            },
-            body: JSON.stringify({
-              model: this.profile.profile.apiModel || 'deepseek-v4-pro',
-              messages: [{
-                role: 'user',
-                content: `解析以下健康记录，提取结构化数据。返回纯JSON（不要其他文字）：
-{
-  "weight": 体重数字(kg)或null,
-  "breakfast": 早餐描述和卡路里,
-  "lunch": 午餐描述和卡路里,
-  "dinner": 晚餐描述和卡路里,
-  "snack": 零食描述和卡路里,
-  "burn": 运动消耗卡路里或null,
-  "water": 喝水毫升数或null,
-  "bowelCount": 大便次数或null,
-  "bowelStatus": "正常"/"便秘"/"腹泻"/"偏干"/"偏稀"/null,
-  "notes": 综合心得描述
-}
-
-规则：
-- breakfast/lunch/dinner/snack 如果有卡路里数字，提取出来，描述包含食物名称
-- 如果用户只描述了食物没提卡路里，尝试合理估算并标注"(估算)"
-- 如果用户说"没吃XX"则该餐为null
-- 只返回JSON，不要任何解释
-
-用户输入：${text}`
-              }],
-              max_tokens: 800,
-              temperature: 0.1
-            })
-          });
-
-          if (!response.ok) throw new Error('API error');
-          const data = await response.json();
-          const content = data.choices[0]?.message?.content || '{}';
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
-          const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : '{}');
-
-          clearTimeout(timeout);
-          this._applyVoiceData(parsed);
-          document.getElementById('voice-status-text').textContent = '已填入，可检查后保存';
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2500);
-        } catch (err) {
-          clearTimeout(timeout);
-          document.getElementById('voice-status-text').textContent = '解析失败，请手动填写';
-          console.error('Voice parse error:', err);
-          setTimeout(() => document.getElementById('voice-status').classList.add('hidden'), 2500);
-        }
-      },
-
-      _applyVoiceData(parsed) {
-        // ── 本地食物热量数据库（与 _parseVoiceLocally 保持一致）─────────────────
-        const FOOD_CALORIE_DB = [
-          { name: '鸡蛋糕', unit: '个', cal: 160 }, { name: '鸡蛋饼', unit: '个', cal: 200 },
-          { name: '鸡蛋灌饼', unit: '个', cal: 350 }, { name: '馒头', unit: '个', cal: 220 },
-          { name: '花卷', unit: '个', cal: 210 }, { name: '米饭', unit: '碗', cal: 200 },
-          { name: '稀饭', unit: '碗', cal: 80 }, { name: '白粥', unit: '碗', cal: 80 },
-          { name: '小米粥', unit: '碗', cal: 90 }, { name: '燕麦', unit: '碗', cal: 150 },
-          { name: '燕麦片', unit: '碗', cal: 150 }, { name: '全麦面包', unit: '片', cal: 80 },
-          { name: '面包', unit: '片', cal: 100 }, { name: '吐司', unit: '片', cal: 80 },
-          { name: '包子', unit: '个', cal: 150 }, { name: '水饺', unit: '个', cal: 25 },
-          { name: '煎饺', unit: '个', cal: 50 }, { name: '油条', unit: '根', cal: 120 },
-          { name: '手抓饼', unit: '个', cal: 300 }, { name: '烧饼', unit: '个', cal: 250 },
-          { name: '鸡蛋', unit: '个', cal: 70 }, { name: '煮鸡蛋', unit: '个', cal: 80 },
-          { name: '煎蛋', unit: '个', cal: 100 }, { name: '荷包蛋', unit: '个', cal: 100 },
-          { name: '咸鸭蛋', unit: '个', cal: 180 }, { name: '牛奶', unit: '盒', cal: 150 },
-          { name: '酸奶', unit: '盒', cal: 100 }, { name: '豆浆', unit: '杯', cal: 80 },
-          { name: '豆腐脑', unit: '碗', cal: 50 }, { name: '肉包', unit: '个', cal: 200 },
-          { name: '肉夹馍', unit: '个', cal: 350 }, { name: '煎饼', unit: '个', cal: 300 },
-          { name: '热干面', unit: '碗', cal: 450 }, { name: '烩面', unit: '碗', cal: 500 },
-          { name: '螺蛳粉', unit: '碗', cal: 550 }, { name: '炒饭', unit: '份', cal: 500 },
-          { name: '炒面', unit: '份', cal: 480 }, { name: '炒粉', unit: '份', cal: 400 },
-          { name: '炒饼', unit: '份', cal: 450 }, { name: '刀削面', unit: '碗', cal: 400 },
-          { name: '兰州拉面', unit: '碗', cal: 450 }, { name: '牛肉面', unit: '碗', cal: 500 },
-          { name: '担担面', unit: '碗', cal: 400 }, { name: '炸酱面', unit: '碗', cal: 400 },
-          { name: '重庆小面', unit: '碗', cal: 380 }, { name: 'biangbiang面', unit: '碗', cal: 500 },
-          { name: '凉面', unit: '碗', cal: 300 }, { name: '冷面', unit: '碗', cal: 250 },
-          { name: '泡面', unit: '桶', cal: 400 }, { name: '方便面', unit: '包', cal: 450 },
-          { name: '烧鸡', unit: '只', cal: 800 }, { name: '白切鸡', unit: '份', cal: 300 },
-          { name: '烧鸭', unit: '份', cal: 450 }, { name: '烤鸭', unit: '份', cal: 500 },
-          { name: '炸鸡', unit: '块', cal: 200 }, { name: '鸡腿', unit: '个', cal: 200 },
-          { name: '鸡翅', unit: '个', cal: 100 }, { name: '鸡胸肉', unit: '份', cal: 150 },
-          { name: '鸡排', unit: '块', cal: 250 }, { name: '牛排', unit: '块', cal: 400 },
-          { name: '牛肉', unit: '份', cal: 250 }, { name: '牛腩', unit: '份', cal: 300 },
-          { name: '肥牛', unit: '份', cal: 300 }, { name: '肥羊', unit: '份', cal: 300 },
-          { name: '五花肉', unit: '份', cal: 350 }, { name: '红烧肉', unit: '份', cal: 400 },
-          { name: '猪蹄', unit: '个', cal: 300 }, { name: '猪排', unit: '块', cal: 280 },
-          { name: '猪肚', unit: '份', cal: 150 }, { name: '猪心', unit: '份', cal: 120 },
-          { name: '猪肝', unit: '份', cal: 130 }, { name: '猪血', unit: '份', cal: 30 },
-          { name: '大闸蟹', unit: '只', cal: 150 }, { name: '小龙虾', unit: '斤', cal: 400 },
-          { name: '虾', unit: '份', cal: 80 }, { name: '鱼', unit: '份', cal: 100 },
-          { name: '清蒸鱼', unit: '份', cal: 150 }, { name: '红烧鱼', unit: '份', cal: 200 },
-          { name: '糖醋鱼', unit: '份', cal: 250 }, { name: '水煮鱼', unit: '份', cal: 400 },
-          { name: '酸菜鱼', unit: '份', cal: 350 }, { name: '烤鱼', unit: '份', cal: 380 },
-          { name: '三文鱼', unit: '份', cal: 200 }, { name: '生鱼片', unit: '份', cal: 150 },
-          { name: '海参', unit: '份', cal: 80 }, { name: '鲍鱼', unit: '个', cal: 50 },
-          { name: '蛤蜊', unit: '份', cal: 50 }, { name: '蛏子', unit: '份', cal: 50 },
-          { name: '扇贝', unit: '个', cal: 30 }, { name: '生蚝', unit: '个', cal: 40 },
-          { name: '海带', unit: '份', cal: 30 }, { name: '紫菜', unit: '份', cal: 20 },
-          { name: '西兰花', unit: '份', cal: 40 }, { name: '花菜', unit: '份', cal: 30 },
-          { name: '菠菜', unit: '份', cal: 20 }, { name: '白菜', unit: '份', cal: 20 },
-          { name: '油菜', unit: '份', cal: 20 }, { name: '青菜', unit: '份', cal: 20 },
-          { name: '娃娃菜', unit: '份', cal: 20 }, { name: '空心菜', unit: '份', cal: 20 },
-          { name: '红薯叶', unit: '份', cal: 20 }, { name: '土豆', unit: '份', cal: 80 },
-          { name: '红薯', unit: '个', cal: 150 }, { name: '玉米', unit: '根', cal: 120 },
-          { name: '山药', unit: '份', cal: 60 }, { name: '芋头', unit: '份', cal: 80 },
-          { name: '莲藕', unit: '份', cal: 70 }, { name: '萝卜', unit: '份', cal: 30 },
-          { name: '胡萝卜', unit: '份', cal: 40 }, { name: '南瓜', unit: '份', cal: 30 },
-          { name: '冬瓜', unit: '份', cal: 15 }, { name: '黄瓜', unit: '根', cal: 15 },
-          { name: '番茄', unit: '份', cal: 20 }, { name: '西红柿', unit: '份', cal: 20 },
-          { name: '茄子', unit: '份', cal: 20 }, { name: '豆角', unit: '份', cal: 30 },
-          { name: '四季豆', unit: '份', cal: 30 }, { name: '荷兰豆', unit: '份', cal: 20 },
-          { name: '木耳', unit: '份', cal: 20 }, { name: '香菇', unit: '份', cal: 20 },
-          { name: '蘑菇', unit: '份', cal: 20 }, { name: '金针菇', unit: '份', cal: 20 },
-          { name: '杏鲍菇', unit: '份', cal: 20 }, { name: '平菇', unit: '份', cal: 15 },
-          { name: '银耳', unit: '份', cal: 30 }, { name: '豆腐', unit: '份', cal: 100 },
-          { name: '豆皮', unit: '份', cal: 100 }, { name: '腐竹', unit: '份', cal: 150 },
-          { name: '豆干', unit: '份', cal: 120 }, { name: '豆腐乳', unit: '块', cal: 50 },
-          { name: '豆浆粉', unit: '包', cal: 150 }, { name: '豆花', unit: '碗', cal: 80 },
-          { name: '米饭', unit: '碗', cal: 200 }, { name: '白米饭', unit: '碗', cal: 200 },
-          { name: '杂粮饭', unit: '碗', cal: 180 }, { name: '糙米饭', unit: '碗', cal: 180 },
-          { name: '馒头', unit: '个', cal: 220 }, { name: '包子', unit: '个', cal: 150 },
-          { name: '饺子', unit: '个', cal: 25 }, { name: '水饺', unit: '个', cal: 25 },
-          { name: '蒸饺', unit: '个', cal: 30 }, { name: '锅贴', unit: '个', cal: 40 },
-          { name: '披萨', unit: '片', cal: 250 }, { name: '汉堡', unit: '个', cal: 400 },
-          { name: '薯条', unit: '份', cal: 300 }, { name: '可乐', unit: '瓶', cal: 200 },
-          { name: '雪碧', unit: '瓶', cal: 200 }, { name: '奶茶', unit: '杯', cal: 250 },
-          { name: '柠檬茶', unit: '杯', cal: 150 }, { name: '果茶', unit: '杯', cal: 180 },
-          { name: '咖啡', unit: '杯', cal: 50 }, { name: '拿铁', unit: '杯', cal: 150 },
-          { name: '卡布奇诺', unit: '杯', cal: 150 }, { name: '摩卡', unit: '杯', cal: 250 },
-          { name: '冰淇淋', unit: '球', cal: 150 }, { name: '冰激凌', unit: '球', cal: 150 },
-          { name: '蛋糕', unit: '块', cal: 200 }, { name: '奶油蛋糕', unit: '块', cal: 300 },
-          { name: '芝士蛋糕', unit: '块', cal: 280 }, { name: '提拉米苏', unit: '份', cal: 320 },
-          { name: '泡芙', unit: '个', cal: 100 }, { name: '马卡龙', unit: '个', cal: 80 },
-          { name: '饼干', unit: '片', cal: 50 }, { name: '曲奇', unit: '片', cal: 60 },
-          { name: '蛋挞', unit: '个', cal: 120 }, { name: '月饼', unit: '个', cal: 300 },
-          { name: '粽子', unit: '个', cal: 200 }, { name: '汤圆', unit: '个', cal: 50 },
-          { name: '元宵', unit: '个', cal: 50 }, { name: '麻薯', unit: '个', cal: 80 },
-          { name: '沙拉', unit: '份', cal: 150 }, { name: '水果沙拉', unit: '份', cal: 100 },
-          { name: '蔬菜沙拉', unit: '份', cal: 80 }, { name: '土豆沙拉', unit: '份', cal: 180 },
-          { name: '三明治', unit: '个', cal: 250 }, { name: '寿司', unit: '个', cal: 40 },
-          { name: '饭团', unit: '个', cal: 150 }, { name: '手卷', unit: '个', cal: 100 },
-          { name: '关东煮', unit: '份', cal: 150 }, { name: '麻辣烫', unit: '份', cal: 400 },
-          { name: '冒菜', unit: '份', cal: 400 }
-        ];
-
-        // 从食物描述文本估算热量的函数
-        function estimateFoodCalories(desc) {
-          if (!desc) return null;
-          var total = 0;
-          var found = false;
-          var sorted = FOOD_CALORIE_DB.slice().sort(function(a, b) { return b.name.length - a.name.length; });
-          for (var i = 0; i < sorted.length; i++) {
-            var item = sorted[i];
-            var re = new RegExp('(\\d+)\\s*[个只碗份根片块串颗瓣把杯罐瓶包张顿段两]?\\s*' + item.name, 'g');
-            var m;
-            while ((m = re.exec(desc)) !== null) {
-              var qty = parseInt(m[1], 10);
-              if (qty > 0 && qty <= 50) {
-                total += qty * item.cal;
-                found = true;
-              }
-            }
-            if (!found) {
-              var re2 = new RegExp('(?:[^\\d]|^)' + item.name + '(?!\\w)', 'g');
-              if (re2.test(desc)) {
-                total += item.cal;
-                found = true;
+              y: {
+                grid: { color: '#e2e8f0', lineWidth: 0.5 },
+                ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' }
               }
             }
           }
-          return found ? total : null;
-        }
-
-        // 提取字符串中的数字（用于旧格式兼容）
-        function extractCalorie(text) {
-          if (!text) return null;
-          var m = String(text).match(/(\d+)\s*(?:kcal|千卡|卡路里|卡)/i);
-          return m ? parseInt(m[1], 10) : null;
-        }
-
-        var notes = [];
-
-        // 体重
-        if (parsed.weight) {
-          document.getElementById('edit-weight').value = parsed.weight;
-        }
-
-        // 早餐处理
-        if (parsed.breakfast_cal || parsed.breakfast_cal === 0) {
-          // 新格式：AI 已返回热量
-          document.getElementById('edit-breakfast').value = parsed.breakfast_cal || '';
-        } else if (parsed.breakfast) {
-          // 旧格式字符串：尝试从文本中提取数字
-          var bcal = extractCalorie(parsed.breakfast);
-          if (bcal !== null) {
-            document.getElementById('edit-breakfast').value = bcal;
-          } else {
-            // 本地食物库估算
-            var best = estimateFoodCalories(parsed.breakfast);
-            document.getElementById('edit-breakfast').value = best !== null ? best : '';
-          }
-          notes.push('【早餐】' + parsed.breakfast);
-        }
-
-        // 午餐处理
-        if (parsed.lunch_cal || parsed.lunch_cal === 0) {
-          document.getElementById('edit-lunch').value = parsed.lunch_cal || '';
-        } else if (parsed.lunch) {
-          var lcal = extractCalorie(parsed.lunch);
-          if (lcal !== null) {
-            document.getElementById('edit-lunch').value = lcal;
-          } else {
-            var best = estimateFoodCalories(parsed.lunch);
-            document.getElementById('edit-lunch').value = best !== null ? best : '';
-          }
-          notes.push('【午餐】' + parsed.lunch);
-        }
-
-        // 晚餐处理
-        if (parsed.dinner_cal || parsed.dinner_cal === 0) {
-          document.getElementById('edit-dinner').value = parsed.dinner_cal || '';
-        } else if (parsed.dinner) {
-          var dcal = extractCalorie(parsed.dinner);
-          if (dcal !== null) {
-            document.getElementById('edit-dinner').value = dcal;
-          } else {
-            var best = estimateFoodCalories(parsed.dinner);
-            document.getElementById('edit-dinner').value = best !== null ? best : '';
-          }
-          notes.push('【晚餐】' + parsed.dinner);
-        }
-
-        // 加餐处理
-        if (parsed.snack_cal || parsed.snack_cal === 0) {
-          document.getElementById('edit-snack').value = parsed.snack_cal || '';
-        } else if (parsed.snack) {
-          var scal = extractCalorie(parsed.snack);
-          if (scal !== null) {
-            document.getElementById('edit-snack').value = scal;
-          } else {
-            var best = estimateFoodCalories(parsed.snack);
-            document.getElementById('edit-snack').value = best !== null ? best : '';
-          }
-          notes.push('【加餐】' + parsed.snack);
-        }
-
-        // 运动
-        if (parsed.burn) document.getElementById('edit-burn').value = parsed.burn;
-
-        // 喝水
-        if (parsed.water) document.getElementById('edit-water').value = parsed.water;
-
-        // 大便
-        if (parsed.bowelCount != null) document.getElementById('edit-bowel-count').value = parsed.bowelCount;
-        if (parsed.bowelStatus) document.getElementById('edit-bowel-status').value = parsed.bowelStatus;
-
-        // 备注：食物描述 + 用户备注合并
-        if (notes.length > 0 || parsed.notes) {
-          var existing = document.getElementById('edit-notes').value.trim();
-          var allLines = [...notes];
-          if (parsed.notes) allLines.push(parsed.notes);
-          var newContent = allLines.join('\n');
-          document.getElementById('edit-notes').value = existing ? existing + '\n' + newContent : newContent;
-        }
-
-        this.renderFoodLog();
-      },
-
-      // ── Stats ─────────────────────────────────────────────────────────────
-      renderStats() {
-        const p = this.profile.profile;
-        const tdResult = calcAdaptiveTDEE(this.store, p);
-        const tdee = tdResult.tdee;
-        const all = this.store.all();
-        const dates = all.map(function(a) { return a[0]; });
-        const weights = all.map(function(a) { return a[1].weight ? Number(a[1].weight) : null; });
-        const intakes = all.map(function(a) { return sum([a[1].breakfast, a[1].lunch, a[1].dinner, a[1].snack]); });
-        const totalOuts = all.map(function(a) { return tdee + (Number(a[1].burn) || 0); });
-
-        this.makeTrajectoryChart('chart-trajectory');
-        this.makeWeeklyWeightChart(all, p);
-        this.makeWeeklyDeficitChart(all, p, tdee);
-
-        // weekly table
-        const weeks = {};
-        all.forEach(([d, r]) => {
-          const ws = getWeekStart(parseDate(d));
-          if (!weeks[ws]) weeks[ws] = { weights: [], intake: [], totalOut: [], water: 0 };
-          if (r.weight) weeks[ws].weights.push(Number(r.weight));
-          const intake = sum([r.breakfast, r.lunch, r.dinner, r.snack]);
-          weeks[ws].intake.push(intake);
-          weeks[ws].totalOut.push(tdee + (Number(r.burn) || 0));
-          weeks[ws].water += Number(r.water) || 0;
-        });
-        const wSorted = Object.entries(weeks).sort((a,b) => a[0].localeCompare(b[0])).slice(-8);
-        document.getElementById('stats-week-body').innerHTML = wSorted.map(([ws, data]) => {
-          const avgIntake = avg(data.intake);
-          const avgOut = avg(data.totalOut);
-          const avgDeficit = avgOut - avgIntake;
-          return `
-          <tr class="hover:bg-white/40">
-            <td class="px-4 py-3 font-medium text-forest">${getWeekLabel(ws)}</td>
-            <td class="px-4 py-3 font-number">${data.weights.length ? round1(avg(data.weights)).toFixed(1) : '-'}</td>
-            <td class="px-4 py-3 font-number">${avgIntake ? Math.round(avgIntake) : '-'}</td>
-            <td class="px-4 py-3 font-number text-sage">${avgOut ? Math.round(avgOut) : '-'}</td>
-            <td class="px-4 py-3 font-number ${avgDeficit > 0 ? 'text-forest' : 'text-coral'}">${avgDeficit ? Math.round(avgDeficit) : '-'}</td>
-          </tr>`
-        }).join('');
-
-        // monthly table
-        const months = {};
-        all.forEach(([d, r]) => {
-          const key = d.slice(0, 7);
-          if (!months[key]) months[key] = { weights: [], intake: [], totalOut: [], bowel: 0 };
-          if (r.weight) months[key].weights.push(Number(r.weight));
-          const intake = sum([r.breakfast, r.lunch, r.dinner, r.snack]);
-          months[key].intake.push(intake);
-          months[key].totalOut.push(tdee + (Number(r.burn) || 0));
-          months[key].bowel += Number(r.bowelCount) || 0;
-        });
-        const mSorted = Object.entries(months).sort((a,b) => a[0].localeCompare(b[0])).slice(-12);
-        document.getElementById('stats-month-body').innerHTML = mSorted.map(([key, data]) => {
-          const avgIntake = avg(data.intake);
-          const avgOut = avg(data.totalOut);
-          const avgDeficit = avgOut - avgIntake;
-          return `
-          <tr class="hover:bg-white/40">
-            <td class="px-4 py-3 font-medium text-forest">${key}</td>
-            <td class="px-4 py-3 font-number">${data.weights.length ? round1(avg(data.weights)).toFixed(1) : '-'}</td>
-            <td class="px-4 py-3 font-number">${avgIntake ? Math.round(avgIntake) : '-'}</td>
-            <td class="px-4 py-3 font-number text-sage">${avgOut ? Math.round(avgOut) : '-'}</td>
-            <td class="px-4 py-3 font-number ${avgDeficit > 0 ? 'text-forest' : 'text-coral'}">${avgDeficit ? Math.round(avgDeficit) : '-'}</td>
-          </tr>`
-        }).join('');
-
-        // Weekly goal progress
-        this._renderWeeklyGoal();
-      },
-
-      _renderWeeklyGoal() {
-        const p = this.profile.profile;
-        const goal = calcGoalMetrics(p);
-        const all = this.store.all();
-
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
-        const weekStartStr = fmtDate(weekStart);
-
-        const weekEntries = all.filter(([d]) => d >= weekStartStr && d <= todayStr());
-        const weekWeights = weekEntries.filter(([d, r]) => r.weight).map(([d, r]) => ({ date: d, weight: Number(r.weight) }));
-
-        const container = document.getElementById('stats-weekly-goal-content');
-        if (!goal.daysLeft || !goal.requiredDaily) {
-          container.innerHTML = '<p class=\"text-sm text-ink/60\">请先在「个人档案」中设置目标体重和日期</p>';
-          return;
-        }
-
-        const weeklyTarget = (goal.requiredDaily * 7) / 7700;
-
-        if (weekWeights.length < 2) {
-          container.innerHTML = '<p class=\"text-sm text-ink/60\">本周记录不足（需至少2天体重数据），已记录 ' + weekWeights.length + ' 天</p>';
-          return;
-        }
-
-        const startW = weekWeights[0].weight;
-        const endW = weekWeights[weekWeights.length - 1].weight;
-        const actualLoss = startW - endW;
-        const pct = Math.min(100, Math.max(0, (actualLoss / weeklyTarget) * 100));
-
-        container.innerHTML = '' +
-          '<div class=\"grid grid-cols-1 md:grid-cols-3 gap-4 mb-4\">' +
-            '<div class=\"bg-white/60 rounded-2xl p-4 text-center\">' +
-              '<p class=\"text-xs text-ink/50 mb-1\">本周起始</p>' +
-              '<p class=\"font-number text-2xl font-bold text-forest\">' + startW.toFixed(1) + '</p>' +
-              '<p class=\"text-xs text-ink/50\">kg · ' + weekWeights[0].date + '</p>' +
-            '</div>' +
-            '<div class=\"bg-white/60 rounded-2xl p-4 text-center\">' +
-              '<p class=\"text-xs text-ink/50 mb-1\">本周最新</p>' +
-              '<p class=\"font-number text-2xl font-bold ' + (actualLoss > 0 ? 'text-sage' : 'text-coral') + '\">' + endW.toFixed(1) + '</p>' +
-              '<p class=\"text-xs text-ink/50\">kg · ' + weekWeights[weekWeights.length-1].date + '</p>' +
-            '</div>' +
-            '<div class=\"bg-white/60 rounded-2xl p-4 text-center\">' +
-              '<p class=\"text-xs text-ink/50 mb-1\">变化 / 目标</p>' +
-              '<p class=\"font-number text-2xl font-bold ' + (actualLoss > 0 ? 'text-sage' : 'text-coral') + '\">' + (actualLoss > 0 ? '-' : '+') + Math.abs(actualLoss).toFixed(1) + '</p>' +
-              '<p class=\"text-xs text-ink/50\">/ 目标 ' + weeklyTarget.toFixed(1) + ' kg</p>' +
-            '</div>' +
-          '</div>' +
-          '<div class=\"mb-2 flex justify-between text-xs text-ink/50\">' +
-            '<span>本周进度</span><span>' + pct.toFixed(0) + '%</span>' +
-          '</div>' +
-          '<div class=\"h-3 bg-stone rounded-full overflow-hidden\">' +
-            '<div class=\"h-full bg-gradient-to-r from-coral to-sage rounded-full transition-all duration-700\" style=\"width:' + pct + '%\"></div>' +
-          '</div>' +
-          '<p class=\"text-xs text-ink/50 mt-3\">已记录 ' + weekEntries.length + ' 天 | ' + (actualLoss >= weeklyTarget ? '✅ 本周目标达成' : actualLoss > 0 ? '📈 接近目标' : '🔄 继续努力') + '</p>' +
-          '<p class=\"text-xs text-ink/40 mt-1\">每日目标缺口: ' + Math.round(goal.requiredDaily) + ' kcal · 每周目标减重: ' + weeklyTarget.toFixed(2) + ' kg</p>';
-      },
-
-      // ── Charts ────────────────────────────────────────────────────────────
-      makeLineChart(canvasId, labels, data, color, fill) {
-        const ctx = document.getElementById(canvasId).getContext('2d');
-        if (this.charts[canvasId]) this.charts[canvasId].destroy();
-        this.charts[canvasId] = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [{
-              label: '体重 (kg)',
-              data,
-              borderColor: color,
-              backgroundColor: fill ? color + '20' : color + '10',
-              borderWidth: 2.5,
-              tension: 0.35,
-              fill,
-              pointRadius: 3,
-              pointBackgroundColor: '#fff',
-              pointBorderColor: color,
-              pointBorderWidth: 2,
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { family: 'Outfit' }, color: '#2C3E5080' } },
-              y: { grid: { color: '#E8E4DC' }, ticks: { font: { family: 'Outfit' }, color: '#2C3E5080' } }
-            }
-          }
         });
       },
-      makeTrajectoryChart(canvasId) {
-        var ctx = document.getElementById(canvasId);
+
+      makeDailyGoalChart() {
+        var ctx = document.getElementById('chart-daily-goal');
         if (!ctx) return;
-        if (this.charts[canvasId]) this.charts[canvasId].destroy();
+        if (this.charts['chart-daily-goal']) this.charts['chart-daily-goal'].destroy();
 
         var p = this.profile.profile;
-        if (!p.target || !p.targetDate) {
-          this.charts[canvasId] = new Chart(ctx, {
-            type: 'line', data: { labels: [], datasets: [] },
-            options: { plugins: { title: { display: true, text: '请先在数据管理页设置目标体重和日期', color: '#888', font: { size: 13 } } } }
-          });
-          return;
-        }
+        if (!p.target || !p.targetDate) return;
+        var plan = this._getPlanData();
+        if (!plan) return;
 
-        var targetDate = new Date(p.targetDate + 'T00:00:00');
+        var labels = [];
+        var planVals = [];
+        var actualVals = [];
         var now = new Date();
-        var statusEl = document.getElementById('trajectory-status');
-        if (!statusEl) return;
-        var daysTotal = Math.ceil((targetDate - now) / 86400000);
-        if (daysTotal <= 0) {
-          statusEl.textContent = '目标日期已过';
-          statusEl.className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-600 font-medium';
-          return;
+
+        for (var i = 6; i >= 0; i--) {
+          var d = new Date(); d.setDate(d.getDate() - i);
+          var dateStr = fmtDate(d);
+          labels.push(dateStr.slice(5));
+          planVals.push(plan.planWeight(dateStr));
+          var rec = this.store.get(dateStr);
+          actualVals.push(rec && rec.weight ? Number(rec.weight) : null);
         }
 
-        // ── Collect recorded weights ──
-        var allDates = [], allWeights = [], dateWMap = {};
-        var allKeys = Object.keys(this.store.records || {}).sort();
-        for (var i = 0; i < allKeys.length; i++) {
-          var rec = this.store.get(allKeys[i]);
-          if (rec && rec.weight && !isNaN(Number(rec.weight)) && Number(rec.weight) > 0) {
-            allDates.push(new Date(allKeys[i] + 'T00:00:00'));
-            allWeights.push(Number(rec.weight));
-            dateWMap[allKeys[i]] = Number(rec.weight);
+        // Digital summary
+        var sumEl = document.getElementById('daily-goal-summary');
+        if (sumEl) {
+          var todayA = actualVals[6], todayP = planVals[6];
+          if (todayA != null) {
+            var diff = todayA - todayP;
+            var abs = Math.abs(diff).toFixed(1);
+            if (diff > 0.05) {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">落后 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">今日体重高于计划</span>';
+            } else if (diff < -0.05) {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">超额 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">今日体重低于计划</span>';
+            } else {
+              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">今日体重与计划一致</span>';
+            }
+          } else {
+            sumEl.innerHTML = '<span class="text-sm text-ink/40">今日暂无体重数据</span>';
           }
         }
-        if (!allWeights.length) {
-          statusEl.textContent = '暂无体重数据';
-          statusEl.className = 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-600 font-medium';
-          return;
-        }
 
-        var startWeight = allWeights[0];
-        var startDate = allDates[0];
-        var targetWeight = p.target;
-        var todayStr = now.toISOString().slice(0, 10);
-        var todayW = dateWMap[todayStr] != null ? dateWMap[todayStr] : allWeights[allWeights.length - 1];
-        var elapsedDays = Math.max(1, Math.ceil((now - startDate) / 86400000));
-        var totalDays = Math.max(elapsedDays, Math.ceil((targetDate - startDate) / 86400000));
-        var expectedToday = startWeight - (startWeight - targetWeight) * elapsedDays / totalDays;
-        var gap = todayW - expectedToday;
-        statusEl.textContent = gap > 0.05 ? '高于计划 +' + gap.toFixed(1) + 'kg' : gap < -0.05 ? '低于计划 ' + gap.toFixed(1) + 'kg' : '完美在轨';
-        statusEl.className = gap > 0.05 ? 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-600 font-medium' : gap < -0.05 ? 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium' : 'text-xs px-3 py-1 rounded-full bg-forest/10 text-forest font-medium';
-
-        // ── Build plan curve (daily points from start to target) ──
-        var planLabels = [];
-        var planValues = [];
-        var sd = new Date(startDate);
-        while (sd <= targetDate) {
-          var label = sd.toISOString().slice(0, 10);
-          planLabels.push(label);
-          var dIdx = Math.floor((sd - startDate) / 86400000);
-          dIdx = Math.min(dIdx, totalDays);
-          planValues.push(startWeight - (startWeight - targetWeight) * dIdx / totalDays);
-          sd.setDate(sd.getDate() + 1);
-        }
-
-        // ── Map actual weight only where we have data ──
-        var actualVals = planLabels.map(function(l) { return dateWMap[l] != null ? dateWMap[l] : null; });
-        var actualHas = planLabels.map(function(l) { return dateWMap[l] != null; });
-
-        // ── Point colours: green if at/below plan, red if above ──
-        var pointColors = actualVals.map(function(v, idx) {
-          if (v == null) return 'transparent';
-          return v <= planValues[idx] + 0.05 ? '#16a34a' : '#dc2626';
-        });
-        var pointBorders = actualVals.map(function(v, idx) {
-          if (v == null) return 'transparent';
-          return v <= planValues[idx] + 0.05 ? '#16a34a' : '#dc2626';
-        });
-
-        // ── X-axis: tick every day (vertical lines), label every few days ──
-        var n = planLabels.length;
-        // Show label every 3 days for short spans, 7 for medium, 14 for long
-        var labelInterval = n <= 60 ? 3 : n <= 180 ? 7 : 14;
-        var xLabels = planLabels.map(function(l, idx) {
-          return idx % labelInterval === 0 || idx === 0 || idx === n - 1 ? l.slice(5) : '';
-        });
-
-        // ── Y-axis range: auto-clamp with 2kg headroom ──
-        var yLo = targetWeight, yHi = startWeight;
-        for (var k = 0; k < allWeights.length; k++) {
-          if (allWeights[k] < yLo) yLo = allWeights[k];
-          if (allWeights[k] > yHi) yHi = allWeights[k];
-        }
-        yLo = Math.floor(Math.min(yLo, targetWeight) - 2);
-        yHi = Math.ceil(Math.max(yHi, startWeight) + 2);
-
-        // ── Compute stacked gap-fill: budget area below plan (green) and excess above (red) ──
-        var gapAbove = actualVals.map(function(v, idx) { return v != null ? Math.max(0, v - planValues[idx]) : 0; });
-        var gapBelow = actualVals.map(function(v, idx) { return v != null ? Math.max(0, planValues[idx] - v) : 0; });
-
-        this.charts[canvasId] = new Chart(ctx, {
+        this.charts['chart-daily-goal'] = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: xLabels,
+            labels: labels,
             datasets: [
-              // Layer 0: Gap background — subtle tint bars
               {
-                label: '                  ', type: 'bar',
-                data: gapAbove,
-                backgroundColor: 'rgba(220,38,38,0.18)',
-                borderWidth: 0,
-                barPercentage: 1.08, categoryPercentage: 1.08,
-                order: 10,
-                stack: 'gap'
+                label: '计划', type: 'scatter',
+                data: planVals.map(function(v, idx) { return {x: idx, y: v}; }),
+                borderColor: '#1e3a5f', backgroundColor: '#1e3a5f',
+                pointRadius: 5, pointHoverRadius: 7, pointStyle: 'rectRot',
+                showLine: true, borderWidth: 2.5, borderDash: [6, 4],
+                fill: false, order: 1
               },
               {
-                label: '                  ', type: 'bar',
-                data: gapBelow,
-                backgroundColor: 'rgba(22,163,74,0.14)',
-                borderWidth: 0,
-                barPercentage: 1.08, categoryPercentage: 1.08,
-                order: 10,
-                stack: 'gap'
-              },
-              // Layer 1: Plan curve — thick dashed
-              {
-                label: '每日计划体重', type: 'line',
-                data: planValues,
-                borderColor: '#1e3a5f',
-                borderWidth: 3.5,
-                borderDash: [10, 5],
-                pointRadius: 0,
-                pointHoverRadius: 0,
-                fill: false,
-                tension: 0,
-                order: 5
-              },
-              // Layer 2: Actual weight — bold solid line + colour-coded dots
-              {
-                label: '每日实际体重', type: 'line',
+                label: '实际体重',
                 data: actualVals,
-                borderColor: '#2D5A27',
-                backgroundColor: 'transparent',
-                pointBackgroundColor: pointColors,
-                pointBorderColor: '#fff',
-                pointBorderWidth: 1.5,
-                pointRadius: actualVals.map(function(v) { return v != null ? 5 : 0; }),
-                pointHoverRadius: 8,
-                borderWidth: 2.8,
-                tension: 0.1,
-                spanGaps: false,
-                fill: false,
-                order: 1
-              },
-              // Layer 3: Today marker (vertical dashed line)
-              {
-                label: '今天', type: 'line',
-                data: planLabels.map(function(l, idx) {
-                  return l === todayStr ? yHi : null;
+                backgroundColor: actualVals.map(function(v, idx) {
+                  if (v == null) return '#cbd5e1';
+                  return v <= planVals[idx] + 0.05 ? '#16a34a' : '#dc2626';
                 }),
-                borderColor: '#64748b',
-                borderWidth: 1.5,
-                borderDash: [4, 4],
-                pointRadius: 0,
-                fill: false,
-                order: 0
-              },
-              // Layer 4: Target star
-              {
-                label: '目标', type: 'line',
-                data: planLabels.map(function(l, idx) { return idx === n - 1 ? targetWeight : null; }),
-                borderColor: '#dc2626',
-                backgroundColor: '#dc2626',
-                pointRadius: 9,
-                pointHoverRadius: 11,
-                pointStyle: 'star',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                showLine: false,
-                order: 0
+                borderRadius: 4, barPercentage: 0.65, categoryPercentage: 0.8, order: 2
               }
             ]
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            animation: { duration: 400 },
-            plugins: {
-              tooltip: {
-                callbacks: {
-                  title: function(items) { return planLabels[items[0].dataIndex]; },
-                  label: function(item) {
-                    if (item.dataset.label === '目标') return '目标体重: ' + targetWeight + ' kg';
-                    if (item.dataset.label === '每日计划体重') return '今日计划: ' + Number(item.raw).toFixed(1) + ' kg';
-                    if (item.dataset.label === '每日实际体重') {
-                      var raw = item.raw;
-                      if (raw == null) return '实际: 暂无记录';
-                      var plan = planValues[item.dataIndex];
-                      var diff = raw - plan;
-                      var tag = diff > 0.05 ? ' +' + diff.toFixed(1) + 'kg (高于计划)' : diff < -0.05 ? ' ' + diff.toFixed(1) + 'kg (低于计划)' : ' 持平';
-                      return '实际: ' + raw.toFixed(1) + ' kg' + tag;
-                    }
-                    return '';
-                  }
-                }
-              },
-              legend: {
-                display: true,
-                position: 'bottom',
-                labels: {
-                  usePointStyle: true,
-                  boxWidth: 20,
-                  boxHeight: 2,
-                  padding: 20,
-                  font: { size: 12, weight: '600' },
-                  color: '#1e293b',
-                  filter: function(item) { return item.text !== '                  ' && item.text !== '今天'; },
-                  generateLabels: function(chart) {
-                    return [
-                      { text: '每日计划体重', fillStyle: '#1e3a5f', strokeStyle: '#1e3a5f', lineWidth: 3, hidden: false, index: 2, pointStyle: 'line', rotation: 0 },
-                      { text: '每日实际体重', fillStyle: '#2D5A27', strokeStyle: '#2D5A27', lineWidth: 2.8, hidden: false, index: 3, pointStyle: 'circle', rotation: 0 },
-                      { text: '高于计划', fillStyle: 'rgba(220,38,38,0.18)', strokeStyle: 'rgba(220,38,38,0.3)', lineWidth: 0, hidden: false, index: 0, pointStyle: 'rect', rotation: 0 },
-                      { text: '低于计划', fillStyle: 'rgba(22,163,74,0.14)', strokeStyle: 'rgba(22,163,74,0.3)', lineWidth: 0, hidden: false, index: 1, pointStyle: 'rect', rotation: 0 }
-                    ];
-                  }
-                }
-              }
-            },
+            plugins: { legend: { display: false } },
             scales: {
-              x: {
-                grid: { display: false },
-                ticks: { maxRotation: 45, font: { size: 9 }, color: '#475569', autoSkip: false },
-                offset: true
-              },
+              x: { grid: { display: false }, ticks: { font: { size: 9 }, color: '#64748b' } },
               y: {
-                min: yLo,
-                max: yHi,
                 grid: { color: '#e2e8f0', lineWidth: 0.5 },
-                ticks: {
-                  stepSize: 0.5,
-                  callback: function(v) { return v.toFixed(1); },
-                  font: { size: 11, weight: '600' },
-                  color: '#334155'
-                },
-                title: { display: true, text: 'kg', font: { size: 12, weight: '600' }, color: '#334155' }
-              }
-            }
-          }
-        });
-      },
-
-      makeWeeklyWeightChart(all, p) {
-        const ctx = document.getElementById('chart-weekly-weight');
-        if (!ctx) return;
-        if (this.charts['chart-weekly-weight']) this.charts['chart-weekly-weight'].destroy();
-
-        // Group by week
-        var weeks = {};
-        all.forEach(function(a) {
-          var d = a[0];
-          var r = a[1];
-          if (!r.weight) return;
-          var date = new Date(d + 'T00:00:00');
-          var yearStart = new Date(date.getFullYear(), 0, 1);
-          var weekNum = Math.ceil(((date - yearStart) / 86400000 + yearStart.getDay() + 1) / 7);
-          var key = date.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
-          if (!weeks[key]) weeks[key] = { weights: [], startDate: d };
-          weeks[key].weights.push(Number(r.weight));
-        });
-
-        var sorted = Object.entries(weeks).sort(function(a,b) { return a[0].localeCompare(b[0]); }).slice(-12);
-        var labels = [];
-        var avgWeights = [];
-        var minWeights = [];
-        var maxWeights = [];
-
-        sorted.forEach(function(e) {
-          var data = e[1];
-          labels.push(e[0]);
-          avgWeights.push(Math.round(data.weights.reduce(function(a,b){return a+b;},0) / data.weights.length * 10) / 10);
-          minWeights.push(Math.min.apply(null, data.weights));
-          maxWeights.push(Math.max.apply(null, data.weights));
-        });
-
-        // Calculate target trajectory weekly points
-        var startW = Number(p.weight) || 0;
-        var targetW = Number(p.target) || 0;
-        var targetLine = null;
-        if (startW && targetW && p.targetDate && sorted.length) {
-          var firstDate = new Date(sorted[0][1].startDate + 'T00:00:00');
-          var endDate = new Date(p.targetDate + 'T00:00:00');
-          var totalWeeks = Math.max(1, (endDate - firstDate) / (7 * 86400000));
-          targetLine = sorted.map(function(e, idx) {
-            return startW - (startW - targetW) * (idx / (sorted.length - 1 + totalWeeks / 2));
-          });
-        }
-
-        var datasets = [
-          {
-            label: '周均体重',
-            type: 'line',
-            data: avgWeights,
-            borderColor: '#2D5A27',
-            backgroundColor: 'rgba(45,90,39,0.1)',
-            borderWidth: 2.5,
-            tension: 0.3,
-            pointRadius: 5,
-            pointBackgroundColor: '#2D5A27',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            order: 1
-          },
-          {
-            label: '范围(最低-最高)',
-            type: 'bar',
-            data: maxWeights.map(function(v, i) { return v - minWeights[i]; }),
-            backgroundColor: 'rgba(45,90,39,0.12)',
-            borderColor: 'rgba(45,90,39,0.3)',
-            borderWidth: 1,
-            barPercentage: 0.6,
-            order: 2
-          }
-        ];
-
-        if (targetLine) {
-          datasets.push({
-            label: '目标线',
-            type: 'line',
-            data: targetLine,
-            borderColor: '#e85d3a',
-            borderWidth: 2,
-            borderDash: [6, 4],
-            tension: 0,
-            pointRadius: 3,
-            pointBackgroundColor: '#e85d3a',
-            fill: false,
-            order: 0
-          });
-        }
-
-        this.charts['chart-weekly-weight'] = new Chart(ctx, {
-          type: 'bar',
-          data: { labels: labels, datasets: datasets },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 10 } } }
-            },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#8a8a8a' } },
-              y: {
-                grid: { color: '#e8e4dc' },
-                ticks: { callback: function(v) { return v.toFixed(1) + 'kg'; }, font: { size: 10 }, color: '#8a8a8a' }
-              }
-            }
-          }
-        });
-      },
-
-      makeWeeklyDeficitChart(all, p, tdee) {
-        var ctx = document.getElementById('chart-weekly-deficit');
-        if (!ctx) return;
-        if (this.charts['chart-weekly-deficit']) this.charts['chart-weekly-deficit'].destroy();
-
-        var goal = calcGoalMetrics(p);
-        var requiredDaily = goal.requiredDaily || 0;
-
-        var weeks = {};
-        all.forEach(function(a) {
-          var d = a[0];
-          var r = a[1];
-          var date = new Date(d + 'T00:00:00');
-          var yearStart = new Date(date.getFullYear(), 0, 1);
-          var weekNum = Math.ceil(((date - yearStart) / 86400000 + yearStart.getDay() + 1) / 7);
-          var key = date.getFullYear() + '-W' + String(weekNum).padStart(2, '0');
-          if (!weeks[key]) weeks[key] = { deficits: [], days: 0 };
-          var intake = sum([r.breakfast, r.lunch, r.dinner, r.snack]);
-          var burn = Number(r.burn) || 0;
-          weeks[key].deficits.push(tdee + burn - intake);
-          weeks[key].days++;
-        });
-
-        var sorted = Object.entries(weeks).sort(function(a,b) { return a[0].localeCompare(b[0]); }).slice(-12);
-        var labels = [];
-        var avgDeficits = [];
-        var requiredLine = [];
-        var goalMet = [];
-        var goalMissed = [];
-
-        sorted.forEach(function(e) {
-          var data = e[1];
-          labels.push(e[0]);
-          var avgD = data.deficits.length ? Math.round(data.deficits.reduce(function(a,b){return a+b;},0) / data.deficits.length) : 0;
-          avgDeficits.push(avgD);
-          requiredLine.push(requiredDaily);
-          if (avgD >= requiredDaily) {
-            goalMet.push(avgD);
-            goalMissed.push(null);
-          } else {
-            goalMet.push(null);
-            goalMissed.push(avgD);
-          }
-        });
-
-        this.charts['chart-weekly-deficit'] = new Chart(ctx, {
-          type: 'bar',
-          data: { labels: labels, datasets: [
-            {
-              label: '达标（缺口≥目标）',
-              data: goalMet,
-              backgroundColor: '#2D5A27',
-              borderRadius: 4,
-              barPercentage: 0.7
-            },
-            {
-              label: '未达标（缺口<目标）',
-              data: goalMissed,
-              backgroundColor: '#e85d3a',
-              borderRadius: 4,
-              barPercentage: 0.7
-            },
-            {
-              label: '目标缺口线（' + Math.round(requiredDaily) + 'kcal）',
-              type: 'line',
-              data: requiredLine,
-              borderColor: '#C85A47',
-              borderWidth: 2,
-              borderDash: [5, 3],
-              pointRadius: 0,
-              fill: false
-            }
-          ]},
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, font: { size: 10 } } },
-              tooltip: {
-                callbacks: {
-                  label: function(item) {
-                    if (item.dataset.label.indexOf('目标缺口') !== -1) return item.dataset.label;
-                    return item.dataset.label + ': ' + (item.raw != null ? Math.round(item.raw) + 'kcal' : '');
-                  }
-                }
-              }
-            },
-            scales: {
-              x: {
-                stacked: true,
-                grid: { display: false },
-                ticks: { font: { size: 10 }, color: '#8a8a8a' }
-              },
-              y: {
-                stacked: true,
-                grid: { color: '#e8e4dc' },
-                ticks: { callback: function(v) { return v + 'kcal'; }, font: { size: 10 }, color: '#8a8a8a' }
+                ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' }
               }
             }
           }
