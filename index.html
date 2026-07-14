@@ -428,36 +428,26 @@
         </div>
       </div>
 
-      <!-- Weight Trend + Goal Progress -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <!-- 7-Day Weight Mini Chart -->
-        <div class="glass rounded-3xl p-6 card-hover">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="font-display text-lg font-bold text-ink">体重趋势 · 近7天</h3>
-            <span id="mini-weight-status" class="text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">--</span>
-          </div>
-          <div class="h-56"><canvas id="chart-weight-mini"></canvas></div>
+      <!-- Daily Goal: 7-day plan vs actual -->
+      <div class="glass rounded-3xl p-5 card-hover">
+        <h3 class="font-display text-lg font-bold text-ink mb-3">每日目标对比 · 近7天</h3>
+        <div class="h-56"><canvas id="chart-daily-goal"></canvas></div>
+        <div id="daily-goal-summary" class="mt-3 text-center"></div>
+        <div class="mt-3 flex gap-4 text-xs text-ink/50 justify-center">
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 达标</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#dc2626"></span> 未达标</div>
         </div>
+      </div>
 
-        <!-- Goal Progress Card -->
-        <div class="glass rounded-3xl p-6 card-hover" id="dash-goal-progress-card">
-          <h3 class="font-display text-lg font-bold text-ink mb-3">目标进度</h3>
-          <div class="flex items-end gap-2 mb-1">
-            <span class="text-4xl font-number font-bold text-forest" id="goal-progress-pct">0%</span>
-            <span class="text-sm text-ink/50 pb-1">进度</span>
-          </div>
-          <div class="h-3 bg-stone/30 rounded-full overflow-hidden mb-2">
-            <div id="goal-progress-bar" class="h-full bg-forest rounded-full transition-all duration-700" style="width:0%"></div>
-          </div>
-          <div class="flex justify-between text-xs text-ink/60">
-            <span>起始: <b id="goal-start-w">--kg</b></span>
-            <span class="font-bold text-forest" id="goal-lost-kg">--</span>
-            <span>目标: <b id="goal-target-w">--kg</b></span>
-          </div>
-          <div class="mt-3 pt-3 border-t border-stone grid grid-cols-2 gap-3 text-xs">
-            <div><span class="text-ink/50">日均需减</span><br><b id="goal-daily-need" class="text-forest">--g</b></div>
-            <div><span class="text-ink/50">实际日均</span><br><b id="goal-daily-actual" class="text-coral">--g</b></div>
-          </div>
+      <!-- Weekly Goal: 4-week plan vs actual -->
+      <div class="glass rounded-3xl p-5 card-hover mt-5">
+        <h3 class="font-display text-lg font-bold text-ink mb-3">每周目标对比 · 近4周</h3>
+        <div class="h-56"><canvas id="chart-weekly-goal"></canvas></div>
+        <div id="weekly-goal-summary" class="mt-3 text-center"></div>
+        <div class="mt-3 flex gap-4 text-xs text-ink/50 justify-center">
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划周均</div>
+          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 实际周均</div>
         </div>
       </div>
 
@@ -2455,69 +2445,191 @@
       },
 
       renderMiniCharts() {
-        const p = this.profile.profile;
-        const tdee = calcAdaptiveTDEE(this.store, p).tdee;
-        const days = [];
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date(); d.setDate(d.getDate() - i);
-          days.push(fmtDate(d));
-        }
-        const labels = days.map(d => d.slice(5));
-        const weights = days.map(d => { const r = this.store.get(d); return r ? Number(r.weight) || null : null; });
-
-        this.makeWeightMiniChart('chart-weight-mini', labels, weights, p);
-        this.renderGoalProgress(p);
-        // Refresh achievements
+        this.makeDailyGoalChart();
+        this.makeWeeklyGoalChart();
+        var p = this.profile.profile;
         achievements.refresh(this.store, p);
         achievements.render('dash-achievements');
-        // Weekly TOP
         this._renderWeeklyTop();
       },
 
-      renderGoalProgress(p) {
-        const startW = Number(p.weight) || 0;
-        const targetW = Number(p.target) || 0;
-        if (!startW || !targetW) {
-          document.getElementById('goal-progress-pct').textContent = '--';
-          document.getElementById('goal-progress-bar').style.width = '0%';
-          return;
+      makeDailyGoalChart() {
+        var ctx = document.getElementById('chart-daily-goal');
+        if (!ctx) return;
+        if (this.charts['chart-daily-goal']) this.charts['chart-daily-goal'].destroy();
+
+        var p = this.profile.profile;
+        if (!p.target || !p.targetDate) return;
+        var startW = Number(p.weight);
+        var targetW = Number(p.target);
+        var targetDate = new Date(p.targetDate + 'T00:00:00');
+        var now = new Date();
+
+        // Find first weight date
+        var allKeys = Object.keys(this.store.records || {}).sort();
+        var firstWDate = null, firstW = startW;
+        for (var i = 0; i < allKeys.length; i++) {
+          var r = this.store.get(allKeys[i]);
+          if (r && r.weight) { firstWDate = allKeys[i]; firstW = Number(r.weight); break; }
         }
-        const total = startW - targetW;
-        if (total <= 0) {
-          document.getElementById('goal-progress-pct').textContent = '已完成';
-          document.getElementById('goal-progress-bar').style.width = '100%';
-          return;
+        if (!firstWDate) firstWDate = now.toISOString().slice(0, 10);
+        var planStart = new Date(firstWDate + 'T00:00:00');
+        var planTotal = Math.max(1, Math.ceil((targetDate - planStart) / 86400000));
+
+        var labels = [];
+        var planVals = [];
+        var actualVals = [];
+
+        for (var i = 6; i >= 0; i--) {
+          var d = new Date(); d.setDate(d.getDate() - i);
+          var dateStr = fmtDate(d);
+          labels.push(dateStr.slice(5));
+          var rec = this.store.get(dateStr);
+          actualVals.push(rec && rec.weight ? Number(rec.weight) : null);
+          var dayIdx = Math.max(0, Math.ceil((d - planStart) / 86400000));
+          planVals.push(firstW - (firstW - targetW) * Math.min(dayIdx, planTotal) / planTotal);
         }
-        // Find latest weight
-        const allW = this.store.all().filter(function(a) { return a[1].weight; }).map(function(a) { return Number(a[1].weight); });
-        const lastW = allW.length ? allW[allW.length - 1] : startW;
-        const lost = startW - lastW;
-        const pct = Math.min(100, Math.max(0, (lost / total) * 100));
-        const now = new Date();
-        const tgt = new Date(p.targetDate + 'T00:00:00');
-        const daysLeft = Math.max(1, Math.ceil((tgt - now) / 86400000));
-        const kgLeft = Math.max(0, lastW - targetW);
-        const dailyNeed = kgLeft > 0 ? Math.round((kgLeft * 1000) / daysLeft) : 0;
 
-        // Actual daily loss from first record to now
-        const sorted = this.store.all().sort(function(a,b){return a[0].localeCompare(b[0]);});
-        const firstWithW = sorted.find(function(a){return a[1].weight;});
-        const actualDays = firstWithW ? Math.max(1, Math.ceil((now - new Date(firstWithW[0] + 'T00:00:00')) / 86400000)) : 1;
-        const actualDaily = Math.round((lost / actualDays) * 1000);
+        var barColors = actualVals.map(function(v, idx) {
+          if (v == null) return '#cbd5e1';
+          return v <= planVals[idx] + 0.05 ? '#16a34a' : '#dc2626';
+        });
 
-        document.getElementById('goal-progress-pct').textContent = Math.round(pct) + '%';
-        document.getElementById('goal-progress-bar').style.width = pct + '%';
-        document.getElementById('goal-start-w').textContent = startW + 'kg';
-        document.getElementById('goal-target-w').textContent = targetW + 'kg';
-        document.getElementById('goal-lost-kg').textContent = lost > 0 ? '已减 ' + lost.toFixed(1) + 'kg' : '--';
-        document.getElementById('goal-daily-need').textContent = dailyNeed + 'g/天';
-        document.getElementById('goal-daily-actual').textContent = actualDaily + 'g/天（实）';
+        // ── Digital summary: how far ahead/behind today vs plan ──
+        var todayActual = actualVals[6]; // last element = today
+        var todayPlan = planVals[6];
+        var diff = todayActual != null ? todayActual - todayPlan : null;
+        var summaryEl = document.getElementById('daily-goal-summary');
+        if (summaryEl && diff != null) {
+          var abs = Math.abs(diff).toFixed(1);
+          if (diff > 0.05) {
+            summaryEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">+' + abs + ' kg</span><br><span class="text-xs text-ink/50">今日体重高于计划</span>';
+          } else if (diff < -0.05) {
+            summaryEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">' + diff.toFixed(1) + ' kg</span><br><span class="text-xs text-ink/50">今日体重低于计划</span>';
+          } else {
+            summaryEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">今日体重与计划一致</span>';
+          }
+        } else if (summaryEl) {
+          summaryEl.innerHTML = '<span class="text-sm text-ink/40">今日暂无体重数据</span>';
+        }
 
-        // Color the daily actual
-        const actEl = document.getElementById('goal-daily-actual');
-        if (actualDaily >= dailyNeed) actEl.className = 'text-forest font-number font-bold';
-        else actEl.className = 'text-coral font-number font-bold';
-        actEl.className = actualDaily >= dailyNeed ? 'text-forest font-number font-bold' : 'text-coral font-number font-bold';
+        // ── Chart ──
+        this.charts['chart-daily-goal'] = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: '实际', data: actualVals, backgroundColor: barColors, borderRadius: 4, barPercentage: 0.65, categoryPercentage: 0.8, order: 2 },
+              { label: '计划', type: 'scatter', data: planVals.map(function(v, idx) { return {x: idx, y: v}; }),
+                borderColor: '#1e3a5f', backgroundColor: '#1e3a5f', pointRadius: 5, pointHoverRadius: 7,
+                pointStyle: 'rectRot', showLine: true, borderWidth: 2.5, borderDash: [6,4], fill: false, order: 1 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 9 }, color: '#64748b' } },
+              y: { grid: { color: '#e2e8f0', lineWidth: 0.5 }, ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' } }
+            }
+          }
+        });
+      },
+
+      makeWeeklyGoalChart() {
+        var ctx = document.getElementById('chart-weekly-goal');
+        if (!ctx) return;
+        if (this.charts['chart-weekly-goal']) this.charts['chart-weekly-goal'].destroy();
+
+        var p = this.profile.profile;
+        if (!p.target || !p.targetDate) return;
+        var startW = Number(p.weight);
+        var targetW = Number(p.target);
+        var targetDate = new Date(p.targetDate + 'T00:00:00');
+        var now = new Date();
+
+        // First weight date
+        var allKeys = Object.keys(this.store.records || {}).sort();
+        var firstWDate = null, firstW = startW;
+        for (var i = 0; i < allKeys.length; i++) {
+          var r = this.store.get(allKeys[i]);
+          if (r && r.weight) { firstWDate = allKeys[i]; firstW = Number(r.weight); break; }
+        }
+        if (!firstWDate) firstWDate = now.toISOString().slice(0, 10);
+        var planStart = new Date(firstWDate + 'T00:00:00');
+        var planTotal = Math.max(1, Math.ceil((targetDate - planStart) / 86400000));
+
+        // Group by ISO week
+        function isoWeek(str) {
+          var d = new Date(str + 'T00:00:00');
+          var dn = d.getDay() || 7; d.setDate(d.getDate() + 4 - dn);
+          var ys = new Date(d.getFullYear(), 0, 1);
+          return d.getFullYear() + '-W' + String(Math.ceil(((d - ys) / 86400000 + 1) / 7)).padStart(2, '0');
+        }
+
+        var all = this.store.all().sort(function(a, b) { return a[0].localeCompare(b[0]); });
+        var weeks = {};
+        all.forEach(function(a) {
+          var wk = isoWeek(a[0]);
+          if (!weeks[wk]) weeks[wk] = { weights: [], dates: [] };
+          if (a[1].weight) weeks[wk].weights.push(Number(a[1].weight));
+          weeks[wk].dates.push(a[0]);
+        });
+
+        var wSorted = Object.entries(weeks).sort(function(a, b) { return a[0].localeCompare(b[0]); }).slice(-4);
+        var labels = [], actualAvgs = [], planAvgs = [];
+        wSorted.forEach(function(entry) {
+          var data = entry[1];
+          labels.push(entry[0].split('-W')[1]);
+          var avgW = data.weights.length ? Math.round(data.weights.reduce(function(s, w) { return s + w; }, 0) / data.weights.length * 10) / 10 : null;
+          actualAvgs.push(avgW);
+          var mid = data.dates[Math.floor(data.dates.length / 2)];
+          var midD = mid ? new Date(mid + 'T00:00:00') : now;
+          var days = Math.max(0, Math.ceil((midD - planStart) / 86400000));
+          planAvgs.push(Math.round((firstW - (firstW - targetW) * Math.min(days, planTotal) / planTotal) * 10) / 10);
+        });
+
+        // ── Digital summary: latest week gap ──
+        var lastActual = actualAvgs[actualAvgs.length - 1];
+        var lastPlan = planAvgs[planAvgs.length - 1];
+        var wDiff = (lastActual != null) ? lastActual - lastPlan : null;
+        var sumEl = document.getElementById('weekly-goal-summary');
+        if (sumEl && wDiff != null) {
+          var abs = Math.abs(wDiff).toFixed(1);
+          if (wDiff > 0.05) {
+            sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">+' + abs + ' kg</span><br><span class="text-xs text-ink/50">本周均值高于计划</span>';
+          } else if (wDiff < -0.05) {
+            sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">' + wDiff.toFixed(1) + ' kg</span><br><span class="text-xs text-ink/50">本周均值低于计划</span>';
+          } else {
+            sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">本周均值与计划一致</span>';
+          }
+        } else if (sumEl) {
+          sumEl.innerHTML = '<span class="text-sm text-ink/40">本周暂无数据</span>';
+        }
+
+        // ── Chart ──
+        this.charts['chart-weekly-goal'] = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels.map(function(l) { return 'W' + l; }),
+            datasets: [
+              { label: '实际周均', data: actualAvgs, backgroundColor: '#16a34a', borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.6, order: 2 },
+              { label: '计划周均', type: 'scatter', data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
+                borderColor: '#1e3a5f', backgroundColor: '#1e3a5f', pointRadius: 6, pointHoverRadius: 8,
+                pointStyle: 'rectRot', showLine: true, borderWidth: 2.5, borderDash: [6,4], fill: false, order: 1 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' }, color: '#475569' } },
+              y: { grid: { color: '#e2e8f0', lineWidth: 0.5 }, ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' } }
+            }
+          }
+        });
       },
 
       handleQuickSubmit(e) {
@@ -3524,39 +3636,6 @@
                 },
                 title: { display: true, text: 'kg', font: { size: 12, weight: '600' }, color: '#334155' }
               }
-            }
-          }
-        });
-      },
-
-      makeWeightMiniChart(canvasId, labels, data, p) {
-        const ctx = document.getElementById(canvasId).getContext('2d');
-        if (this.charts[canvasId]) this.charts[canvasId].destroy();
-        const startW = Number(p.weight) || 0;
-        const targetW = Number(p.target) || 0;
-        const validData = data.map(function(v) { return v !== null && !isNaN(v) ? v : null; });
-        // Find last valid weight for status
-        var lastValid = null;
-        for (var i = validData.length - 1; i >= 0; i--) {
-          if (validData[i] !== null) { lastValid = validData[i]; break; }
-        }
-        const statusEl = document.getElementById('mini-weight-status');
-        if (statusEl && startW && targetW && lastValid) {
-          const loss = startW - lastValid;
-          statusEl.textContent = loss > 0 ? '已减 ' + loss.toFixed(1) + 'kg' : '--';
-          statusEl.className = loss > 0 ? 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium' : 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium';
-        }
-
-        this.charts[canvasId] = new Chart(ctx, {
-          type: 'line', data: { labels, datasets: [
-            { label: '体重', data: validData, borderColor: '#2D5A27', backgroundColor: 'rgba(45,90,39,0.08)', borderWidth: 3, tension: 0.35, pointRadius: 4, pointBackgroundColor: '#2D5A27', pointBorderColor: '#fff', pointBorderWidth: 2, fill: true, spanGaps: false }
-          ]},
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#8a8a8a' } },
-              y: { grid: { color: '#e8e4dc' }, ticks: { callback: function(v) { return v + 'kg'; }, font: { size: 11 }, color: '#8a8a8a' } }
             }
           }
         });
