@@ -2798,37 +2798,221 @@
       },
 
       _applyVoiceData(parsed) {
-        if (parsed.weight) document.getElementById('edit-weight').value = parsed.weight;
-        if (parsed.breakfast) {
-          const calMatch = String(parsed.breakfast).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-breakfast').value = calMatch ? calMatch[1] : '';
+        // ── 本地食物热量数据库（与 _parseVoiceLocally 保持一致）─────────────────
+        const FOOD_CALORIE_DB = [
+          { name: '鸡蛋糕', unit: '个', cal: 160 }, { name: '鸡蛋饼', unit: '个', cal: 200 },
+          { name: '鸡蛋灌饼', unit: '个', cal: 350 }, { name: '馒头', unit: '个', cal: 220 },
+          { name: '花卷', unit: '个', cal: 210 }, { name: '米饭', unit: '碗', cal: 200 },
+          { name: '稀饭', unit: '碗', cal: 80 }, { name: '白粥', unit: '碗', cal: 80 },
+          { name: '小米粥', unit: '碗', cal: 90 }, { name: '燕麦', unit: '碗', cal: 150 },
+          { name: '燕麦片', unit: '碗', cal: 150 }, { name: '全麦面包', unit: '片', cal: 80 },
+          { name: '面包', unit: '片', cal: 100 }, { name: '吐司', unit: '片', cal: 80 },
+          { name: '包子', unit: '个', cal: 150 }, { name: '水饺', unit: '个', cal: 25 },
+          { name: '煎饺', unit: '个', cal: 50 }, { name: '油条', unit: '根', cal: 120 },
+          { name: '手抓饼', unit: '个', cal: 300 }, { name: '烧饼', unit: '个', cal: 250 },
+          { name: '鸡蛋', unit: '个', cal: 70 }, { name: '煮鸡蛋', unit: '个', cal: 80 },
+          { name: '煎蛋', unit: '个', cal: 100 }, { name: '荷包蛋', unit: '个', cal: 100 },
+          { name: '咸鸭蛋', unit: '个', cal: 180 }, { name: '牛奶', unit: '盒', cal: 150 },
+          { name: '酸奶', unit: '盒', cal: 100 }, { name: '豆浆', unit: '杯', cal: 80 },
+          { name: '豆腐脑', unit: '碗', cal: 50 }, { name: '肉包', unit: '个', cal: 200 },
+          { name: '肉夹馍', unit: '个', cal: 350 }, { name: '煎饼', unit: '个', cal: 300 },
+          { name: '热干面', unit: '碗', cal: 450 }, { name: '烩面', unit: '碗', cal: 500 },
+          { name: '螺蛳粉', unit: '碗', cal: 550 }, { name: '炒饭', unit: '份', cal: 500 },
+          { name: '炒面', unit: '份', cal: 480 }, { name: '炒粉', unit: '份', cal: 400 },
+          { name: '炒饼', unit: '份', cal: 450 }, { name: '刀削面', unit: '碗', cal: 400 },
+          { name: '兰州拉面', unit: '碗', cal: 450 }, { name: '牛肉面', unit: '碗', cal: 500 },
+          { name: '担担面', unit: '碗', cal: 400 }, { name: '炸酱面', unit: '碗', cal: 400 },
+          { name: '重庆小面', unit: '碗', cal: 380 }, { name: 'biangbiang面', unit: '碗', cal: 500 },
+          { name: '凉面', unit: '碗', cal: 300 }, { name: '冷面', unit: '碗', cal: 250 },
+          { name: '泡面', unit: '桶', cal: 400 }, { name: '方便面', unit: '包', cal: 450 },
+          { name: '烧鸡', unit: '只', cal: 800 }, { name: '白切鸡', unit: '份', cal: 300 },
+          { name: '烧鸭', unit: '份', cal: 450 }, { name: '烤鸭', unit: '份', cal: 500 },
+          { name: '炸鸡', unit: '块', cal: 200 }, { name: '鸡腿', unit: '个', cal: 200 },
+          { name: '鸡翅', unit: '个', cal: 100 }, { name: '鸡胸肉', unit: '份', cal: 150 },
+          { name: '鸡排', unit: '块', cal: 250 }, { name: '牛排', unit: '块', cal: 400 },
+          { name: '牛肉', unit: '份', cal: 250 }, { name: '牛腩', unit: '份', cal: 300 },
+          { name: '肥牛', unit: '份', cal: 300 }, { name: '肥羊', unit: '份', cal: 300 },
+          { name: '五花肉', unit: '份', cal: 350 }, { name: '红烧肉', unit: '份', cal: 400 },
+          { name: '猪蹄', unit: '个', cal: 300 }, { name: '猪排', unit: '块', cal: 280 },
+          { name: '猪肚', unit: '份', cal: 150 }, { name: '猪心', unit: '份', cal: 120 },
+          { name: '猪肝', unit: '份', cal: 130 }, { name: '猪血', unit: '份', cal: 30 },
+          { name: '大闸蟹', unit: '只', cal: 150 }, { name: '小龙虾', unit: '斤', cal: 400 },
+          { name: '虾', unit: '份', cal: 80 }, { name: '鱼', unit: '份', cal: 100 },
+          { name: '清蒸鱼', unit: '份', cal: 150 }, { name: '红烧鱼', unit: '份', cal: 200 },
+          { name: '糖醋鱼', unit: '份', cal: 250 }, { name: '水煮鱼', unit: '份', cal: 400 },
+          { name: '酸菜鱼', unit: '份', cal: 350 }, { name: '烤鱼', unit: '份', cal: 380 },
+          { name: '三文鱼', unit: '份', cal: 200 }, { name: '生鱼片', unit: '份', cal: 150 },
+          { name: '海参', unit: '份', cal: 80 }, { name: '鲍鱼', unit: '个', cal: 50 },
+          { name: '蛤蜊', unit: '份', cal: 50 }, { name: '蛏子', unit: '份', cal: 50 },
+          { name: '扇贝', unit: '个', cal: 30 }, { name: '生蚝', unit: '个', cal: 40 },
+          { name: '海带', unit: '份', cal: 30 }, { name: '紫菜', unit: '份', cal: 20 },
+          { name: '西兰花', unit: '份', cal: 40 }, { name: '花菜', unit: '份', cal: 30 },
+          { name: '菠菜', unit: '份', cal: 20 }, { name: '白菜', unit: '份', cal: 20 },
+          { name: '油菜', unit: '份', cal: 20 }, { name: '青菜', unit: '份', cal: 20 },
+          { name: '娃娃菜', unit: '份', cal: 20 }, { name: '空心菜', unit: '份', cal: 20 },
+          { name: '红薯叶', unit: '份', cal: 20 }, { name: '土豆', unit: '份', cal: 80 },
+          { name: '红薯', unit: '个', cal: 150 }, { name: '玉米', unit: '根', cal: 120 },
+          { name: '山药', unit: '份', cal: 60 }, { name: '芋头', unit: '份', cal: 80 },
+          { name: '莲藕', unit: '份', cal: 70 }, { name: '萝卜', unit: '份', cal: 30 },
+          { name: '胡萝卜', unit: '份', cal: 40 }, { name: '南瓜', unit: '份', cal: 30 },
+          { name: '冬瓜', unit: '份', cal: 15 }, { name: '黄瓜', unit: '根', cal: 15 },
+          { name: '番茄', unit: '份', cal: 20 }, { name: '西红柿', unit: '份', cal: 20 },
+          { name: '茄子', unit: '份', cal: 20 }, { name: '豆角', unit: '份', cal: 30 },
+          { name: '四季豆', unit: '份', cal: 30 }, { name: '荷兰豆', unit: '份', cal: 20 },
+          { name: '木耳', unit: '份', cal: 20 }, { name: '香菇', unit: '份', cal: 20 },
+          { name: '蘑菇', unit: '份', cal: 20 }, { name: '金针菇', unit: '份', cal: 20 },
+          { name: '杏鲍菇', unit: '份', cal: 20 }, { name: '平菇', unit: '份', cal: 15 },
+          { name: '银耳', unit: '份', cal: 30 }, { name: '豆腐', unit: '份', cal: 100 },
+          { name: '豆皮', unit: '份', cal: 100 }, { name: '腐竹', unit: '份', cal: 150 },
+          { name: '豆干', unit: '份', cal: 120 }, { name: '豆腐乳', unit: '块', cal: 50 },
+          { name: '豆浆粉', unit: '包', cal: 150 }, { name: '豆花', unit: '碗', cal: 80 },
+          { name: '米饭', unit: '碗', cal: 200 }, { name: '白米饭', unit: '碗', cal: 200 },
+          { name: '杂粮饭', unit: '碗', cal: 180 }, { name: '糙米饭', unit: '碗', cal: 180 },
+          { name: '馒头', unit: '个', cal: 220 }, { name: '包子', unit: '个', cal: 150 },
+          { name: '饺子', unit: '个', cal: 25 }, { name: '水饺', unit: '个', cal: 25 },
+          { name: '蒸饺', unit: '个', cal: 30 }, { name: '锅贴', unit: '个', cal: 40 },
+          { name: '披萨', unit: '片', cal: 250 }, { name: '汉堡', unit: '个', cal: 400 },
+          { name: '薯条', unit: '份', cal: 300 }, { name: '可乐', unit: '瓶', cal: 200 },
+          { name: '雪碧', unit: '瓶', cal: 200 }, { name: '奶茶', unit: '杯', cal: 250 },
+          { name: '柠檬茶', unit: '杯', cal: 150 }, { name: '果茶', unit: '杯', cal: 180 },
+          { name: '咖啡', unit: '杯', cal: 50 }, { name: '拿铁', unit: '杯', cal: 150 },
+          { name: '卡布奇诺', unit: '杯', cal: 150 }, { name: '摩卡', unit: '杯', cal: 250 },
+          { name: '冰淇淋', unit: '球', cal: 150 }, { name: '冰激凌', unit: '球', cal: 150 },
+          { name: '蛋糕', unit: '块', cal: 200 }, { name: '奶油蛋糕', unit: '块', cal: 300 },
+          { name: '芝士蛋糕', unit: '块', cal: 280 }, { name: '提拉米苏', unit: '份', cal: 320 },
+          { name: '泡芙', unit: '个', cal: 100 }, { name: '马卡龙', unit: '个', cal: 80 },
+          { name: '饼干', unit: '片', cal: 50 }, { name: '曲奇', unit: '片', cal: 60 },
+          { name: '蛋挞', unit: '个', cal: 120 }, { name: '月饼', unit: '个', cal: 300 },
+          { name: '粽子', unit: '个', cal: 200 }, { name: '汤圆', unit: '个', cal: 50 },
+          { name: '元宵', unit: '个', cal: 50 }, { name: '麻薯', unit: '个', cal: 80 },
+          { name: '沙拉', unit: '份', cal: 150 }, { name: '水果沙拉', unit: '份', cal: 100 },
+          { name: '蔬菜沙拉', unit: '份', cal: 80 }, { name: '土豆沙拉', unit: '份', cal: 180 },
+          { name: '三明治', unit: '个', cal: 250 }, { name: '寿司', unit: '个', cal: 40 },
+          { name: '饭团', unit: '个', cal: 150 }, { name: '手卷', unit: '个', cal: 100 },
+          { name: '关东煮', unit: '份', cal: 150 }, { name: '麻辣烫', unit: '份', cal: 400 },
+          { name: '冒菜', unit: '份', cal: 400 }
+        ];
+
+        // 从食物描述文本估算热量的函数
+        function estimateFoodCalories(desc) {
+          if (!desc) return null;
+          var total = 0;
+          var found = false;
+          var sorted = FOOD_CALORIE_DB.slice().sort(function(a, b) { return b.name.length - a.name.length; });
+          for (var i = 0; i < sorted.length; i++) {
+            var item = sorted[i];
+            var re = new RegExp('(\\d+)\\s*[个只碗份根片块串颗瓣把杯罐瓶包张顿段两]?\\s*' + item.name, 'g');
+            var m;
+            while ((m = re.exec(desc)) !== null) {
+              var qty = parseInt(m[1], 10);
+              if (qty > 0 && qty <= 50) {
+                total += qty * item.cal;
+                found = true;
+              }
+            }
+            if (!found) {
+              var re2 = new RegExp('(?:[^\\d]|^)' + item.name + '(?!\\w)', 'g');
+              if (re2.test(desc)) {
+                total += item.cal;
+                found = true;
+              }
+            }
+          }
+          return found ? total : null;
         }
-        if (parsed.lunch) {
-          const calMatch = String(parsed.lunch).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-lunch').value = calMatch ? calMatch[1] : '';
+
+        // 提取字符串中的数字（用于旧格式兼容）
+        function extractCalorie(text) {
+          if (!text) return null;
+          var m = String(text).match(/(\d+)\s*(?:kcal|千卡|卡路里|卡)/i);
+          return m ? parseInt(m[1], 10) : null;
         }
-        if (parsed.dinner) {
-          const calMatch = String(parsed.dinner).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-dinner').value = calMatch ? calMatch[1] : '';
+
+        var notes = [];
+
+        // 体重
+        if (parsed.weight) {
+          document.getElementById('edit-weight').value = parsed.weight;
         }
-        if (parsed.snack) {
-          const calMatch = String(parsed.snack).match(/(\d+)\s*(?:kcal|卡|千卡)/);
-          document.getElementById('edit-snack').value = calMatch ? calMatch[1] : '';
+
+        // 早餐处理
+        if (parsed.breakfast_cal || parsed.breakfast_cal === 0) {
+          // 新格式：AI 已返回热量
+          document.getElementById('edit-breakfast').value = parsed.breakfast_cal || '';
+        } else if (parsed.breakfast) {
+          // 旧格式字符串：尝试从文本中提取数字
+          var bcal = extractCalorie(parsed.breakfast);
+          if (bcal !== null) {
+            document.getElementById('edit-breakfast').value = bcal;
+          } else {
+            // 本地食物库估算
+            var best = estimateFoodCalories(parsed.breakfast);
+            document.getElementById('edit-breakfast').value = best !== null ? best : '';
+          }
+          notes.push('【早餐】' + parsed.breakfast);
         }
+
+        // 午餐处理
+        if (parsed.lunch_cal || parsed.lunch_cal === 0) {
+          document.getElementById('edit-lunch').value = parsed.lunch_cal || '';
+        } else if (parsed.lunch) {
+          var lcal = extractCalorie(parsed.lunch);
+          if (lcal !== null) {
+            document.getElementById('edit-lunch').value = lcal;
+          } else {
+            var best = estimateFoodCalories(parsed.lunch);
+            document.getElementById('edit-lunch').value = best !== null ? best : '';
+          }
+          notes.push('【午餐】' + parsed.lunch);
+        }
+
+        // 晚餐处理
+        if (parsed.dinner_cal || parsed.dinner_cal === 0) {
+          document.getElementById('edit-dinner').value = parsed.dinner_cal || '';
+        } else if (parsed.dinner) {
+          var dcal = extractCalorie(parsed.dinner);
+          if (dcal !== null) {
+            document.getElementById('edit-dinner').value = dcal;
+          } else {
+            var best = estimateFoodCalories(parsed.dinner);
+            document.getElementById('edit-dinner').value = best !== null ? best : '';
+          }
+          notes.push('【晚餐】' + parsed.dinner);
+        }
+
+        // 加餐处理
+        if (parsed.snack_cal || parsed.snack_cal === 0) {
+          document.getElementById('edit-snack').value = parsed.snack_cal || '';
+        } else if (parsed.snack) {
+          var scal = extractCalorie(parsed.snack);
+          if (scal !== null) {
+            document.getElementById('edit-snack').value = scal;
+          } else {
+            var best = estimateFoodCalories(parsed.snack);
+            document.getElementById('edit-snack').value = best !== null ? best : '';
+          }
+          notes.push('【加餐】' + parsed.snack);
+        }
+
+        // 运动
         if (parsed.burn) document.getElementById('edit-burn').value = parsed.burn;
+
+        // 喝水
         if (parsed.water) document.getElementById('edit-water').value = parsed.water;
+
+        // 大便
         if (parsed.bowelCount != null) document.getElementById('edit-bowel-count').value = parsed.bowelCount;
         if (parsed.bowelStatus) document.getElementById('edit-bowel-status').value = parsed.bowelStatus;
-        if (parsed.notes) {
-          const existing = document.getElementById('edit-notes').value.trim();
-          const mealLines = [];
-          if (parsed.breakfast) mealLines.push(`【早餐】${parsed.breakfast}`);
-          if (parsed.lunch) mealLines.push(`【午餐】${parsed.lunch}`);
-          if (parsed.dinner) mealLines.push(`【晚餐】${parsed.dinner}`);
-          if (parsed.snack) mealLines.push(`【加餐】${parsed.snack}`);
-          const fullNotes = [...mealLines, parsed.notes].join('\n');
-          document.getElementById('edit-notes').value = existing ? existing + '\n' + fullNotes : fullNotes;
+
+        // 备注：食物描述 + 用户备注合并
+        if (notes.length > 0 || parsed.notes) {
+          var existing = document.getElementById('edit-notes').value.trim();
+          var allLines = [...notes];
+          if (parsed.notes) allLines.push(parsed.notes);
+          var newContent = allLines.join('\n');
+          document.getElementById('edit-notes').value = existing ? existing + '\n' + newContent : newContent;
         }
+
         this.renderFoodLog();
       },
 
