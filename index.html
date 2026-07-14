@@ -3284,35 +3284,31 @@
         if (!p.target || !p.targetDate) {
           this.charts[canvasId] = new Chart(ctx, {
             type: 'line', data: { labels: [], datasets: [] },
-            options: { plugins: { title: { display: true, text: '请先在「数据管理」页面设置目标体重和日期', color: '#888' } } }
+            options: { plugins: { title: { display: true, text: '请先在数据管理页设置目标体重和日期', color: '#888', font: { size: 13 } } } }
           });
           return;
         }
 
         var targetDate = new Date(p.targetDate + 'T00:00:00');
         var now = new Date();
-        var daysTotal = Math.ceil((targetDate - now) / 86400000);
         var statusEl = document.getElementById('trajectory-status');
         if (!statusEl) return;
+        var daysTotal = Math.ceil((targetDate - now) / 86400000);
         if (daysTotal <= 0) {
           statusEl.textContent = '目标日期已过';
           statusEl.className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-600 font-medium';
           return;
         }
 
-        // Collect all recorded dates/weights (sorted)
-        var allDates = [], allWeights = [];
+        // ── Collect recorded weights ──
+        var allDates = [], allWeights = [], dateWMap = {};
         var allKeys = Object.keys(this.store.records || {}).sort();
-        if (!allKeys.length) {
-          statusEl.textContent = '暂无体重数据';
-          statusEl.className = 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-600 font-medium';
-          return;
-        }
         for (var i = 0; i < allKeys.length; i++) {
           var rec = this.store.get(allKeys[i]);
           if (rec && rec.weight && !isNaN(Number(rec.weight)) && Number(rec.weight) > 0) {
             allDates.push(new Date(allKeys[i] + 'T00:00:00'));
             allWeights.push(Number(rec.weight));
+            dateWMap[allKeys[i]] = Number(rec.weight);
           }
         }
         if (!allWeights.length) {
@@ -3324,133 +3320,144 @@
         var startWeight = allWeights[0];
         var startDate = allDates[0];
         var targetWeight = p.target;
-        var totalDays = Math.ceil((targetDate - startDate) / 86400000);
-        var todayStr = new Date().toISOString().slice(0, 10);
-        var todayRec = this.store.get(todayStr);
-        var currentWeight = todayRec && todayRec.weight ? Number(todayRec.weight) : allWeights[allWeights.length - 1];
-        var elapsedDays = Math.ceil((now - startDate) / 86400000);
-        var expectedToday = startWeight - (startWeight - targetWeight) * Math.min(elapsedDays, totalDays) / totalDays;
-        var gap = currentWeight - expectedToday;
-        statusEl.textContent = gap > 0.01 ? '落后 ' + gap.toFixed(1) + 'kg' : gap < -0.01 ? '领先 ' + Math.abs(gap).toFixed(1) + 'kg' : '完美在轨';
-        statusEl.className = gap > 0.01 ? 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium' : gap < -0.01 ? 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium' : 'text-xs px-3 py-1 rounded-full bg-forest/10 text-forest font-medium';
+        var todayStr = now.toISOString().slice(0, 10);
+        var todayW = dateWMap[todayStr] != null ? dateWMap[todayStr] : allWeights[allWeights.length - 1];
+        var elapsedDays = Math.max(1, Math.ceil((now - startDate) / 86400000));
+        var totalDays = Math.max(elapsedDays, Math.ceil((targetDate - startDate) / 86400000));
+        var expectedToday = startWeight - (startWeight - targetWeight) * elapsedDays / totalDays;
+        var gap = todayW - expectedToday;
+        statusEl.textContent = gap > 0.05 ? '高于计划 +' + gap.toFixed(1) + 'kg' : gap < -0.05 ? '低于计划 ' + gap.toFixed(1) + 'kg' : '完美在轨';
+        statusEl.className = gap > 0.05 ? 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-600 font-medium' : gap < -0.05 ? 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium' : 'text-xs px-3 py-1 rounded-full bg-forest/10 text-forest font-medium';
 
-        // ── Build plan curve: daily from first data point to targetDate ──
+        // ── Build plan curve (daily points from start to target) ──
         var planLabels = [];
         var planValues = [];
-        var d = new Date(startDate);
-        while (d <= targetDate) {
-          planLabels.push(d.toISOString().slice(0, 10));
-          var dayIdx = Math.floor((d - startDate) / 86400000);
-          dayIdx = Math.min(dayIdx, totalDays);
-          planValues.push(startWeight - (startWeight - targetWeight) * dayIdx / totalDays);
-          d.setDate(d.getDate() + 1);
+        var sd = new Date(startDate);
+        while (sd <= targetDate) {
+          var label = sd.toISOString().slice(0, 10);
+          planLabels.push(label);
+          var dIdx = Math.floor((sd - startDate) / 86400000);
+          dIdx = Math.min(dIdx, totalDays);
+          planValues.push(startWeight - (startWeight - targetWeight) * dIdx / totalDays);
+          sd.setDate(sd.getDate() + 1);
         }
 
-        // ── Map actual weights onto plan axis (only where we have data) ──
-        var actualData = planLabels.map(function(label) {
-          for (var j = 0; j < allDates.length; j++) {
-            if (allDates[j].toISOString().slice(0, 10) === label) return allWeights[j];
-          }
-          return null;
+        // ── Map actual weight only where we have data ──
+        var actualVals = planLabels.map(function(l) { return dateWMap[l] != null ? dateWMap[l] : null; });
+        var actualHas = planLabels.map(function(l) { return dateWMap[l] != null; });
+
+        // ── Point colours: green if at/below plan, red if above ──
+        var pointColors = actualVals.map(function(v, idx) {
+          if (v == null) return 'transparent';
+          return v <= planValues[idx] + 0.05 ? '#16a34a' : '#dc2626';
+        });
+        var pointBorders = actualVals.map(function(v, idx) {
+          if (v == null) return 'transparent';
+          return v <= planValues[idx] + 0.05 ? '#16a34a' : '#dc2626';
         });
 
-        // ── Smart date labels: show every 3 days for first month, then every 7 ──
+        // ── X-axis labels: show every 2 days for short spans, every 7 for long ──
         var n = planLabels.length;
-        var showLabels = planLabels.map(function(l, idx) {
+        var xLabels = planLabels.map(function(l, idx) {
           if (idx === 0 || idx === n - 1) return l.slice(5);
-          if (n <= 60)  { if (idx % 3 === 0) return l.slice(5); }        // ≤2mo: every 3 days
-          else if (n <= 120) { if (idx % 7 === 0) return l.slice(5); }  // 2-4mo: every week
-          else { if (idx % 14 === 0) return l.slice(5); }                 // >4mo: biweekly
-          return '';
+          if (n <= 45)  { return idx % 2 === 0 ? l.slice(5) : ''; }
+          else if (n <= 90) { return idx % 5 === 0 ? l.slice(5) : ''; }
+          else { return idx % 7 === 0 ? l.slice(5) : ''; }
         });
 
-        // ── Y-axis range: clamp around actual weight span with 3kg padding ──
-        var yMin = targetWeight, yMax = startWeight;
+        // ── Y-axis range: auto-clamp with 2kg headroom ──
+        var yLo = targetWeight, yHi = startWeight;
         for (var k = 0; k < allWeights.length; k++) {
-          if (allWeights[k] < yMin) yMin = allWeights[k];
-          if (allWeights[k] > yMax) yMax = allWeights[k];
+          if (allWeights[k] < yLo) yLo = allWeights[k];
+          if (allWeights[k] > yHi) yHi = allWeights[k];
         }
-        yMin = Math.floor(Math.min(yMin, targetWeight) - 1.5);
-        yMax = Math.ceil(Math.max(yMax, startWeight) + 1.5);
+        yLo = Math.floor(Math.min(yLo, targetWeight) - 2);
+        yHi = Math.ceil(Math.max(yHi, startWeight) + 2);
 
-        // Build the gap series: positive = above plan (red fill), negative = below plan (green fill)
-        var abovePlan = actualData.map(function(v, idx) {
-          return v != null ? Math.max(0, v - planValues[idx]) : null;
-        });
-        var belowPlan = actualData.map(function(v, idx) {
-          return v != null ? Math.max(0, planValues[idx] - v) : null;
-        });
+        // ── Compute stacked gap-fill: budget area below plan (green) and excess above (red) ──
+        var gapAbove = actualVals.map(function(v, idx) { return v != null ? Math.max(0, v - planValues[idx]) : 0; });
+        var gapBelow = actualVals.map(function(v, idx) { return v != null ? Math.max(0, planValues[idx] - v) : 0; });
 
         this.charts[canvasId] = new Chart(ctx, {
-          type: 'line',
+          type: 'bar',
           data: {
-            labels: showLabels,
+            labels: xLabels,
             datasets: [
-              // ── Layer 1: Gap fill — red area above plan, green area below plan ──
+              // Layer 0: Gap background — subtle tint bars
               {
-                label: '高于计划',
-                type: 'bar',
-                data: abovePlan,
-                backgroundColor: 'rgba(232,93,58,0.35)',
+                label: '                  ', type: 'bar',
+                data: gapAbove,
+                backgroundColor: 'rgba(220,38,38,0.18)',
                 borderWidth: 0,
-                barPercentage: 1.0,
-                categoryPercentage: 1.0,
-                order: 3
+                barPercentage: 1.08, categoryPercentage: 1.08,
+                order: 10,
+                stack: 'gap'
               },
               {
-                label: '低于计划',
-                type: 'bar',
-                data: belowPlan,
-                backgroundColor: 'rgba(45,90,39,0.30)',
+                label: '                  ', type: 'bar',
+                data: gapBelow,
+                backgroundColor: 'rgba(22,163,74,0.14)',
                 borderWidth: 0,
-                barPercentage: 1.0,
-                categoryPercentage: 1.0,
-                order: 3
+                barPercentage: 1.08, categoryPercentage: 1.08,
+                order: 10,
+                stack: 'gap'
               },
-              // ── Layer 2: Plan curve (bold dashed) ──
+              // Layer 1: Plan curve — thick dashed
               {
-                label: '计划曲线',
+                label: '每日计划体重', type: 'line',
                 data: planValues,
-                borderColor: '#3C2415',
-                borderWidth: 3,
-                borderDash: [],
+                borderColor: '#1e3a5f',
+                borderWidth: 3.5,
+                borderDash: [10, 5],
                 pointRadius: 0,
-                pointHoverRadius: 4,
+                pointHoverRadius: 0,
                 fill: false,
                 tension: 0,
-                order: 2
+                order: 5
               },
-              // ── Layer 3: Actual daily dots + line ──
+              // Layer 2: Actual weight — bold solid line + colour-coded dots
               {
-                label: '实际体重',
-                data: actualData,
+                label: '每日实际体重', type: 'line',
+                data: actualVals,
                 borderColor: '#2D5A27',
                 backgroundColor: 'transparent',
-                pointBackgroundColor: actualData.map(function(v) { return v != null ? '#2D5A27' : 'transparent'; }),
-                pointRadius: 4,
-                pointHoverRadius: 7,
+                pointBackgroundColor: pointColors,
                 pointBorderColor: '#fff',
                 pointBorderWidth: 1.5,
-                borderWidth: 2,
-                tension: 0.15,
+                pointRadius: actualVals.map(function(v) { return v != null ? 5 : 0; }),
+                pointHoverRadius: 8,
+                borderWidth: 2.8,
+                tension: 0.1,
                 spanGaps: false,
                 fill: false,
                 order: 1
               },
-              // ── Layer 4: Target endpoint marker ──
+              // Layer 3: Today marker (vertical dashed line)
               {
-                label: '目标',
-                data: [targetWeight],
-                borderColor: '#e85d3a',
-                backgroundColor: '#e85d3a',
-                pointRadius: 8,
-                pointHoverRadius: 10,
-                pointStyle: 'star',
-                showLine: false,
-                order: 0,
-                // Only show on last point
+                label: '今天', type: 'line',
+                data: planLabels.map(function(l, idx) {
+                  return l === todayStr ? yHi : null;
+                }),
+                borderColor: '#64748b',
+                borderWidth: 1.5,
+                borderDash: [4, 4],
+                pointRadius: 0,
+                fill: false,
+                order: 0
+              },
+              // Layer 4: Target star
+              {
+                label: '目标', type: 'line',
                 data: planLabels.map(function(l, idx) { return idx === n - 1 ? targetWeight : null; }),
-                pointBackgroundColor: '#e85d3a'
+                borderColor: '#dc2626',
+                backgroundColor: '#dc2626',
+                pointRadius: 9,
+                pointHoverRadius: 11,
+                pointStyle: 'star',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                showLine: false,
+                order: 0
               }
             ]
           },
@@ -3458,36 +3465,64 @@
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            animation: { duration: 600 },
+            animation: { duration: 400 },
             plugins: {
               tooltip: {
                 callbacks: {
                   title: function(items) { return planLabels[items[0].dataIndex]; },
                   label: function(item) {
-                    if (item.dataset.label === '目标') return '目标: ' + targetWeight + ' kg';
-                    if (item.dataset.label === '计划曲线') return '计划: ' + item.raw + ' kg';
-                    return item.dataset.label + ': ' + (item.raw != null ? Number(item.raw).toFixed(1) + ' kg' : '--');
+                    if (item.dataset.label === '目标') return '目标体重: ' + targetWeight + ' kg';
+                    if (item.dataset.label === '每日计划体重') return '今日计划: ' + Number(item.raw).toFixed(1) + ' kg';
+                    if (item.dataset.label === '每日实际体重') {
+                      var raw = item.raw;
+                      if (raw == null) return '实际: 暂无记录';
+                      var plan = planValues[item.dataIndex];
+                      var diff = raw - plan;
+                      var tag = diff > 0.05 ? ' +' + diff.toFixed(1) + 'kg (高于计划)' : diff < -0.05 ? ' ' + diff.toFixed(1) + 'kg (低于计划)' : ' 持平';
+                      return '实际: ' + raw.toFixed(1) + ' kg' + tag;
+                    }
+                    return '';
                   }
                 }
               },
-              legend: { display: false }
+              legend: {
+                display: true,
+                position: 'bottom',
+                labels: {
+                  usePointStyle: true,
+                  boxWidth: 20,
+                  boxHeight: 2,
+                  padding: 20,
+                  font: { size: 12, weight: '600' },
+                  color: '#1e293b',
+                  filter: function(item) { return item.text !== '                  ' && item.text !== '今天'; },
+                  generateLabels: function(chart) {
+                    return [
+                      { text: '每日计划体重', fillStyle: '#1e3a5f', strokeStyle: '#1e3a5f', lineWidth: 3, hidden: false, index: 2, pointStyle: 'line', rotation: 0 },
+                      { text: '每日实际体重', fillStyle: '#2D5A27', strokeStyle: '#2D5A27', lineWidth: 2.8, hidden: false, index: 3, pointStyle: 'circle', rotation: 0 },
+                      { text: '高于计划', fillStyle: 'rgba(220,38,38,0.18)', strokeStyle: 'rgba(220,38,38,0.3)', lineWidth: 0, hidden: false, index: 0, pointStyle: 'rect', rotation: 0 },
+                      { text: '低于计划', fillStyle: 'rgba(22,163,74,0.14)', strokeStyle: 'rgba(22,163,74,0.3)', lineWidth: 0, hidden: false, index: 1, pointStyle: 'rect', rotation: 0 }
+                    ];
+                  }
+                }
+              }
             },
             scales: {
               x: {
                 grid: { display: false },
-                ticks: { maxRotation: 0, font: { size: 10 }, color: '#8a8a8a' }
+                ticks: { maxRotation: 0, font: { size: 10 }, color: '#64748b' }
               },
               y: {
-                min: yMin,
-                max: yMax,
-                grid: { color: '#e8e4dc' },
+                min: yLo,
+                max: yHi,
+                grid: { color: '#e2e8f0', lineWidth: 0.5 },
                 ticks: {
                   stepSize: 0.5,
                   callback: function(v) { return v.toFixed(1); },
-                  font: { size: 11 },
-                  color: '#8a8a8a'
+                  font: { size: 11, weight: '600' },
+                  color: '#334155'
                 },
-                title: { display: true, text: '体重 (kg)', font: { size: 11 } }
+                title: { display: true, text: 'kg', font: { size: 12, weight: '600' }, color: '#334155' }
               }
             }
           }
