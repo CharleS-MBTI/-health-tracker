@@ -1,0 +1,24 @@
+{
+    "description":  "智能减重追踪器：热量缺口、体重曲线、AI顾问",
+    "short_name":  "健康追踪",
+    "icons":  [
+                  {
+                      "purpose":  "any maskable",
+                      "type":  "image/png",
+                      "sizes":  "192x192",
+                      "src":  "icon-192.png"
+                  },
+                  {
+                      "purpose":  "any maskable",
+                      "type":  "image/png",
+                      "sizes":  "512x512",
+                      "src":  "icon-512.png"
+                  }
+              ],
+    "theme_color":  "#2D5A3D",
+    "display":  "standalone",
+    "name":  "Charles健康追踪",
+    "background_color":  "#2D5A3D",
+    "start_url":  "/",
+    "orientation":  "portrait"
+}
