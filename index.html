@@ -471,6 +471,19 @@
         <div class="glass rounded-3xl p-6 card-hover">
           <h3 class="font-display text-lg font-bold text-ink mb-4">近 7 天热量缺口</h3>
           <div class="h-56"><canvas id="chart-deficit-mini"></canvas></div>
+              </div>
+
+      <!-- Weight Trajectory Chart -->
+      <div class="glass rounded-3xl p-6 card-hover mt-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-display text-lg font-bold text-ink">减重路径 <span class="text-sm font-normal text-ink/50">实际 vs 完美曲线</span></h3>
+          <span id="trajectory-status" class="text-xs px-3 py-1 rounded-full bg-forest/10 text-forest font-medium"></span>
+        </div>
+        <div class="h-72"><canvas id="chart-trajectory"></canvas></div>
+        <div class="mt-3 flex gap-4 text-xs text-ink/60">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-forest inline-block"></span> 实际体重</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 inline-block" style="border-bottom:2px dashed #e85d3a"></span> 完美曲线（匀速减重）</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-coral inline-block"></span> 目标体重</div>
         </div>
       </div>
     </section>
@@ -2435,6 +2448,7 @@
 
         // mini charts
         this.renderMiniCharts();
+        this.makeTrajectoryChart('chart-trajectory');
       },
 
       renderMiniCharts() {
@@ -3066,6 +3080,7 @@
         const totalOuts = all.map(([d, r]) => tdee + (Number(r.burn) || 0));
 
         this.makeWeightChart('chart-weight', dates, weights);
+        this.makeTrajectoryChart('chart-trajectory');
         this.makeDualChart('chart-calories', dates, intakes, totalOuts);
 
         // weekly table
@@ -3217,6 +3232,183 @@
           }
         });
       },
+      makeTrajectoryChart(canvasId) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        if (this.charts[canvasId]) this.charts[canvasId].destroy();
+
+        const p = this.profile.profile;
+        if (!p.target || !p.targetDate) {
+          // No target set, show placeholder
+          this.charts[canvasId] = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+              plugins: {
+                title: { display: true, text: '请先在「数据管理」页面设置目标体重和日期', color: '#888' }
+              }
+            }
+          });
+          return;
+        }
+
+        const targetDate = new Date(p.targetDate + 'T00:00:00');
+        const now = new Date();
+        const daysTotal = Math.ceil((targetDate - now) / 86400000);
+        const statusEl = document.getElementById('trajectory-status');
+        if (!statusEl) return;
+
+        if (daysTotal <= 0) {
+          statusEl.textContent = '目标日期已过';
+          statusEl.className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-600 font-medium';
+          return;
+        }
+
+        // Collect all recorded weights, sorted by date
+        const allDates = [];
+        const allWeights = [];
+        const allKeys = Object.keys(this.store.records || {}).sort();
+        if (!allKeys.length) {
+          statusEl.textContent = '暂无体重数据';
+          statusEl.className = 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-600 font-medium';
+          return;
+        }
+
+        for (var i = 0; i < allKeys.length; i++) {
+          var rec = this.store.get(allKeys[i]);
+          if (rec && rec.weight && !isNaN(Number(rec.weight)) && Number(rec.weight) > 0) {
+            allDates.push(new Date(allKeys[i] + 'T00:00:00'));
+            allWeights.push(Number(rec.weight));
+          }
+        }
+        if (!allWeights.length) {
+          statusEl.textContent = '暂无体重数据';
+          statusEl.className = 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-600 font-medium';
+          return;
+        }
+
+        // Starting weight = earliest recorded weight
+        const startWeight = allWeights[0];
+        const startDate = allDates[0];
+        const targetWeight = p.target;
+        const totalDays = Math.ceil((targetDate - startDate) / 86400000);
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayRecord = this.store.get(todayStr);
+        const currentWeight = todayRecord && todayRecord.weight ? Number(todayRecord.weight) : allWeights[allWeights.length - 1];
+        const elapsedDays = Math.ceil((now - startDate) / 86400000);
+        const expectedToday = startWeight - (startWeight - targetWeight) * Math.min(elapsedDays, totalDays) / totalDays;
+        const gap = currentWeight - expectedToday;
+        const statusText = gap > 0.01
+          ? '落后 ' + gap.toFixed(1) + 'kg — 需加速'
+          : gap < -0.01
+            ? '领先 ' + Math.abs(gap).toFixed(1) + 'kg — 保持住'
+            : '完美！与计划一致';
+        statusEl.textContent = statusText;
+        statusEl.className = gap > 0.01
+          ? 'text-xs px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium'
+          : gap < -0.01
+            ? 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium'
+            : 'text-xs px-3 py-1 rounded-full bg-forest/10 text-forest font-medium';
+
+        // Build trajectory points: daily from startDate to targetDate
+        const trajectoryLabels = [];
+        const trajectoryValues = [];
+        const d = new Date(startDate);
+        while (d <= targetDate) {
+          trajectoryLabels.push(d.toISOString().slice(0, 10));
+          var dayIndex = Math.floor((d - startDate) / 86400000);
+          dayIndex = Math.min(dayIndex, totalDays);
+          trajectoryValues.push(startWeight - (startWeight - targetWeight) * dayIndex / totalDays);
+          d.setDate(d.getDate() + 1);
+        }
+
+        // Map actual weights into trajectory space (null when no data)
+        const actualOnTrajectory = trajectoryLabels.map(function(label) {
+          for (var i = 0; i < allDates.length; i++) {
+            if (allDates[i].toISOString().slice(0, 10) === label) return allWeights[i];
+          }
+          return null;
+        });
+
+        // Short date labels: show every N days
+        const shortLabels = trajectoryLabels.map(function(l, idx) {
+          if (idx === 0 || idx === trajectoryLabels.length - 1) return l.slice(5); // always show first and last
+          if (idx % 14 === 0) return l.slice(5); // every 2 weeks
+          return '';
+        });
+
+        this.charts[canvasId] = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: shortLabels,
+            datasets: [
+              {
+                label: '实际体重',
+                data: actualOnTrajectory,
+                borderColor: '#2D5A27',
+                backgroundColor: 'rgba(45,90,39,0.1)',
+                pointBackgroundColor: '#2D5A27',
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                borderWidth: 2.5,
+                tension: 0.2,
+                spanGaps: false
+              },
+              {
+                label: '完美曲线',
+                data: trajectoryValues,
+                borderColor: '#e85d3a',
+                borderWidth: 2,
+                borderDash: [8, 4],
+                pointRadius: 0,
+                fill: false,
+                tension: 0
+              },
+              {
+                label: '目标体重',
+                data: trajectoryLabels.map(function(l, idx) {
+                  return idx === trajectoryLabels.length - 1 ? targetWeight : null;
+                }),
+                borderColor: '#e85d3a',
+                backgroundColor: '#e85d3a',
+                pointRadius: 7,
+                pointHoverRadius: 9,
+                pointStyle: 'rectRounded',
+                showLine: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  title: function(items) { return '日期: ' + trajectoryLabels[items[0].dataIndex]; },
+                  label: function(item) {
+                    if (item.dataset.label === '目标体重') return '目标: ' + item.raw + 'kg';
+                    return item.dataset.label + ': ' + (item.raw != null ? item.raw.toFixed(1) + 'kg' : '无数据');
+                  }
+                }
+              },
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                ticks: { maxRotation: 0, font: { size: 10 } },
+                grid: { display: false }
+              },
+              y: {
+                title: { display: true, text: '体重 (kg)' },
+                ticks: { callback: function(v) { return v.toFixed(1) + 'kg'; } },
+                reverse: false
+              }
+            }
+          }
+        });
+      },
+
       makeWeightChart(canvasId, labels, data) {
         const ctx = document.getElementById(canvasId).getContext('2d');
         if (this.charts[canvasId]) this.charts[canvasId].destroy();
