@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -1259,6 +1259,10 @@
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
             <span id="voice-btn-text">语音记录</span>
           </button>
+          <button type="button" onclick="app.openAIChat()" class="btn-press px-4 py-3 rounded-xl border-2 border-indigo-400 text-indigo-600 hover:bg-indigo-50 font-medium transition flex items-center gap-2 text-sm">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            AI 询问
+          </button>
           <div id="voice-status" class="hidden flex items-center gap-2 px-4 py-3 bg-purple-50 rounded-xl text-sm text-purple-700">
             <div class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
             <span id="voice-status-text">识别中...</span>
@@ -1266,6 +1270,40 @@
           <button type="submit" class="btn-press flex-1 bg-forest hover:bg-moss text-white py-3 rounded-xl font-medium transition">保存记录</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- AI 询问弹窗 -->
+  <div id="ai-chat-modal" class="fixed inset-0 z-50 hidden bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+      <!-- 头部 -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-stone/20 bg-gradient-to-r from-purple-50 to-indigo-50">
+        <div>
+          <h3 class="font-bold text-purple-800">AI 健康顾问</h3>
+          <p class="text-xs text-purple-500 mt-0.5">基于今日数据为你解答</p>
+        </div>
+        <button onclick="app.closeAIChat()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-purple-100 text-purple-600 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <!-- 今日数据摘要 -->
+      <div id="ai-chat-context" class="px-6 py-3 bg-purple-50 border-b border-purple-100 text-xs text-purple-700 space-y-1 max-h-40 overflow-y-auto"></div>
+      <!-- 对话区域 -->
+      <div id="ai-chat-history" class="flex-1 overflow-y-auto px-6 py-4 space-y-3 min-h-0" style="max-height: 320px;"></div>
+      <!-- 输入区域 -->
+      <div class="px-6 py-4 border-t border-stone/20 bg-stone-50">
+        <div class="flex gap-2">
+          <input type="text" id="ai-chat-input" placeholder="例如：今天还要锻炼多少？晚上吃什么好？"
+            class="flex-1 px-4 py-3 rounded-xl border border-stone/40 bg-white focus:outline-none focus:border-purple-400 text-sm"
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();app.sendAIQuestion()}">
+          <button onclick="app.sendAIQuestion()" id="ai-chat-send"
+            class="px-5 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl font-medium transition flex items-center gap-1 text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            发送
+          </button>
+        </div>
+        <p id="ai-chat-hint" class="text-xs text-stone-400 mt-2 text-center"></p>
+      </div>
     </div>
   </div>
 
@@ -3825,6 +3863,178 @@
           notesEl.value = existing ? existing + noteLine : noteLine.trim();
         }
         this.closeFoodCapture();
+      },
+
+      openAIChat() {
+        const modal = document.getElementById('ai-chat-modal');
+        const contextEl = document.getElementById('ai-chat-context');
+        const historyEl = document.getElementById('ai-chat-history');
+        const inputEl = document.getElementById('ai-chat-input');
+        const hintEl = document.getElementById('ai-chat-hint');
+
+        modal.classList.remove('hidden');
+        historyEl.innerHTML = '';
+        inputEl.value = '';
+        hintEl.textContent = '';
+
+        // 构建今日数据摘要
+        const today = this.getTodayStr();
+        const record = this.store.get(today);
+        const p = this.profile.profile;
+        const tdee = calcAdaptiveTDEE(this.store, p).tdee;
+        const todayIntake = record ? (Number(record.breakfast)||0) + (Number(record.lunch)||0) + (Number(record.dinner)||0) + (Number(record.snack)||0) : 0;
+        const todayBurn = record ? Number(record.burn)||0 : 0;
+        const remaining = tdee - todayIntake + todayBurn;
+        const bmi = p.weight && p.height ? (p.weight / ((p.height/100)*(p.height/100))).toFixed(1) : null;
+
+        let contextHTML = '<div class="font-medium mb-1">今日数据摘要</div>';
+        contextHTML += `<div>体重: ${record?.weight ? record.weight + 'kg' : '未记录'} (目标 ${p.target}kg)`;
+        contextHTML += ` | BMI: ${bmi || '-'} | 基础代谢: ${Math.round(tdee)}kcal</div>`;
+        contextHTML += `<div>已摄入: ${todayIntake}kcal | 运动消耗: ${todayBurn}kcal | 今日剩余: <b>${remaining > 0 ? remaining + 'kcal' : '已超标 ' + Math.abs(remaining) + 'kcal'}</b></div>`;
+        if (record?.weight) contextHTML += `<div>体重变化: ${(record.weight - p.weight).toFixed(1)}kg (相对目标体重)`;
+        contextEl.innerHTML = contextHTML;
+
+        inputEl.focus();
+
+        // 欢迎消息
+        const welcome = {
+          role: 'ai',
+          text: `你好！我是你的 AI 健康顾问。\n\n根据你的今日数据（已显示在上方），我可以帮你分析：\n• 今天还需要锻炼多少\n• 晚餐吃多少卡路里合适、吃什么好\n• 你的饮食和运动是否合理\n• 如何达成目标\n\n请直接问我任何问题！`
+        };
+        this._renderAIMessage(welcome);
+      },
+
+      closeAIChat() {
+        document.getElementById('ai-chat-modal').classList.add('hidden');
+      },
+
+      _renderAIMessage(msg) {
+        const historyEl = document.getElementById('ai-chat-history');
+        const div = document.createElement('div');
+        if (msg.role === 'user') {
+          div.className = 'flex justify-end';
+          div.innerHTML = `<div class="max-w-[80%] px-4 py-3 rounded-2xl rounded-br-md bg-purple-500 text-white text-sm">${this._escapeHTML(msg.text)}</div>`;
+        } else {
+          div.className = 'flex justify-start';
+          div.innerHTML = `<div class="max-w-[80%] px-4 py-3 rounded-2xl rounded-bl-md bg-purple-100 text-stone-800 text-sm whitespace-pre-wrap leading-relaxed">${this._escapeHTML(msg.text)}</div>`;
+        }
+        historyEl.appendChild(div);
+        historyEl.scrollTop = historyEl.scrollHeight;
+      },
+
+      _escapeHTML(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      },
+
+      async sendAIQuestion() {
+        const inputEl = document.getElementById('ai-chat-input');
+        const sendBtn = document.getElementById('ai-chat-send');
+        const hintEl = document.getElementById('ai-chat-hint');
+        const question = inputEl.value.trim();
+        if (!question) return;
+
+        const apiKey = this.profile.profile.apiKey;
+        if (!apiKey) {
+          hintEl.textContent = '请先在「数据管理」页面配置 DeepSeek API Key';
+          hintEl.style.color = '#dc2626';
+          return;
+        }
+
+        // 禁用输入
+        inputEl.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = `<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 思考中`;
+
+        // 显示用户消息
+        this._renderAIMessage({ role: 'user', text: question });
+        inputEl.value = '';
+
+        // 构建上下文
+        const today = this.getTodayStr();
+        const record = this.store.get(today);
+        const p = this.profile.profile;
+        const tdee = calcAdaptiveTDEE(this.store, p).tdee;
+        const todayIntake = record ? (Number(record.breakfast)||0) + (Number(record.lunch)||0) + (Number(record.dinner)||0) + (Number(record.snack)||0) : 0;
+        const todayBurn = record ? Number(record.burn)||0 : 0;
+        const remaining = tdee - todayIntake + todayBurn;
+        const bmi = p.weight && p.height ? (p.weight / ((p.height/100)*(p.height/100))).toFixed(1) : null;
+
+        const systemPrompt = `你是一个专业的健康管理助手。用户正在通过一个健康追踪应用记录每日的饮食、运动和体重数据。你的职责是根据用户提供的今日数据和个人目标，给出实用、具体、可操作的健康建议。
+
+【重要规则】
+1. 回复语言：用户用中文提问，一律用中文回答
+2. 回复风格：亲切、实用、直接，不废话
+3. 数字优先：给出具体数值（kcal、分钟、kg等），不要只说"适量"
+4. 范围合理：热量建议在 300-800kcal 之间，取决于用户的剩余预算
+5. 食物推荐：给出具体食物名称和大概分量
+6. 运动建议：给出具体运动类型和分钟数
+7. 如果用户剩余热量为负（已超标），给出补救建议而非继续多吃
+8. 不要编造数据，严格基于用户提供的信息回答
+
+【用户今日数据】
+- 日期: ${today}
+- 体重: ${record?.weight ? record.weight + 'kg' : '未记录'}
+- 目标体重: ${p.target}kg
+- 身高: ${p.height}cm
+- BMI: ${bmi || '未知'}
+- 基础代谢(BMR): ${Math.round(tdee * 0.8)}kcal（估算）
+- 今日总消耗(TDEE): ${Math.round(tdee)}kcal
+- 今日已摄入: ${todayIntake}kcal
+- 今日运动消耗: ${todayBurn}kcal
+- 今日热量剩余: ${remaining > 0 ? '+' + remaining + 'kcal（还能吃）' : remaining + 'kcal（已超标）'}
+- 今日各餐摄入: 早餐 ${record?.breakfast||0}kcal | 午餐 ${record?.lunch||0}kcal | 晚餐 ${record?.dinner||0}kcal | 加餐 ${record?.snack||0}kcal
+- 喝水: ${record?.water||'未记录'}ml
+- 目标日期: ${p.targetDate}
+- 距离目标还差: ${record?.weight ? (record.weight - p.target).toFixed(1) : '?'}kg
+
+请根据以上数据，回答用户的问题。如果数据缺失（如未记录体重），在回答中说明并给出通用建议。`;
+
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 45000);
+
+          const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify({
+              model: this.profile.profile.apiModel || 'deepseek-chat',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: question }
+              ],
+              max_tokens: 600,
+              temperature: 0.7
+            })
+          });
+
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            if (response.status === 401) throw new Error('API Key 无效，请检查 DeepSeek Key');
+            if (response.status === 402) throw new Error('DeepSeek 账户余额不足，请充值');
+            if (response.status === 429) throw new Error('请求过快，请稍后再试');
+            throw new Error('请求失败: ' + response.status);
+          }
+
+          const data = await response.json();
+          const answer = data.choices?.[0]?.message?.content || '抱歉，我没有收到有效回复。';
+          this._renderAIMessage({ role: 'ai', text: answer });
+
+        } catch (err) {
+          this._renderAIMessage({ role: 'ai', text: '出错啦：' + err.message + '\n\n你可以检查 API Key 配置，或稍后再试。' });
+        } finally {
+          inputEl.disabled = false;
+          sendBtn.disabled = false;
+          sendBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> 发送`;
+        }
       }
     };
 
