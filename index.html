@@ -3356,13 +3356,12 @@
           return v <= planValues[idx] + 0.05 ? '#16a34a' : '#dc2626';
         });
 
-        // ── X-axis labels: show every 2 days for short spans, every 7 for long ──
+        // ── X-axis: tick every day (vertical lines), label every few days ──
         var n = planLabels.length;
+        // Show label every 3 days for short spans, 7 for medium, 14 for long
+        var labelInterval = n <= 60 ? 3 : n <= 180 ? 7 : 14;
         var xLabels = planLabels.map(function(l, idx) {
-          if (idx === 0 || idx === n - 1) return l.slice(5);
-          if (n <= 45)  { return idx % 2 === 0 ? l.slice(5) : ''; }
-          else if (n <= 90) { return idx % 5 === 0 ? l.slice(5) : ''; }
-          else { return idx % 7 === 0 ? l.slice(5) : ''; }
+          return idx % labelInterval === 0 || idx === 0 || idx === n - 1 ? l.slice(5) : '';
         });
 
         // ── Y-axis range: auto-clamp with 2kg headroom ──
@@ -3510,7 +3509,8 @@
             scales: {
               x: {
                 grid: { display: false },
-                ticks: { maxRotation: 0, font: { size: 10 }, color: '#64748b' }
+                ticks: { maxRotation: 45, font: { size: 9 }, color: '#475569', autoSkip: false },
+                offset: true
               },
               y: {
                 min: yLo,
