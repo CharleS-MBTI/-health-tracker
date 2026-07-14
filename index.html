@@ -428,39 +428,51 @@
         </div>
       </div>
 
-      <!-- Monthly Goal: all months to target -->
-      <div class="glass rounded-3xl p-5 card-hover">
-        <h3 class="font-display text-lg font-bold text-ink mb-3">月度减重目标 <span class="text-sm font-normal text-ink/40">95kg → 75kg · 至12月31日</span></h3>
-        <div class="h-64"><canvas id="chart-monthly-goal"></canvas></div>
-        <div id="monthly-goal-summary" class="mt-3 text-center"></div>
-        <div class="mt-2 flex gap-4 text-xs text-ink/50 justify-center">
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 月度计划</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#f59e0b"></span> 计划月均</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 实际月均</div>
+      <!-- ── 月度减重目标 ── -->
+      <div class="relative overflow-hidden rounded-3xl mb-6" style="background: linear-gradient(135deg, #1e3a5f 0%, #1a2d4a 100%);">
+        <div class="absolute top-0 right-0 w-32 h-32 rounded-bl-full opacity-10" style="background:#fff;"></div>
+        <div class="relative p-5">
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style="background:rgba(255,255,255,0.15);">📅</div>
+            <div>
+              <h3 class="font-display text-base font-bold text-white">月度减重目标</h3>
+              <p class="text-xs text-white/60">95kg → 75kg · 至12月31日 · 还需减20kg</p>
+            </div>
+          </div>
+          <div class="h-56 mt-3"><canvas id="chart-monthly-goal"></canvas></div>
+          <div id="monthly-goal-summary" class="mt-2 text-center"></div>
         </div>
       </div>
 
-      <!-- Weekly Goal: last 4 weeks plan vs actual -->
-      <div class="glass rounded-3xl p-5 card-hover mt-5">
-        <h3 class="font-display text-lg font-bold text-ink mb-3">每周减重进度 · 近4周</h3>
-        <div class="h-56"><canvas id="chart-weekly-goal"></canvas></div>
-        <div id="weekly-goal-summary" class="mt-3 text-center"></div>
-        <div class="mt-2 flex gap-4 text-xs text-ink/50 justify-center">
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划周均</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#f59e0b"></span> 计划线</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 实际周均</div>
+      <!-- ── 每周减重进度 ── -->
+      <div class="relative overflow-hidden rounded-3xl mb-6" style="background: linear-gradient(135deg, #7c2d12 0%, #5c1d08 100%);">
+        <div class="absolute top-0 right-0 w-28 h-28 rounded-bl-full opacity-10" style="background:#fff;"></div>
+        <div class="relative p-5">
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style="background:rgba(255,255,255,0.15);">📊</div>
+            <div>
+              <h3 class="font-display text-base font-bold text-white">每周减重进度</h3>
+              <p class="text-xs text-white/60">近4周 · 每周计划均重 vs 实际均重</p>
+            </div>
+          </div>
+          <div class="h-56 mt-3"><canvas id="chart-weekly-goal"></canvas></div>
+          <div id="weekly-goal-summary" class="mt-2 text-center"></div>
         </div>
       </div>
 
-      <!-- Daily Goal: last 7 days plan vs actual -->
-      <div class="glass rounded-3xl p-5 card-hover mt-5">
-        <h3 class="font-display text-lg font-bold text-ink mb-3">每日体重目标 · 近7天</h3>
-        <div class="h-56"><canvas id="chart-daily-goal"></canvas></div>
-        <div id="daily-goal-summary" class="mt-3 text-center"></div>
-        <div class="mt-2 flex gap-4 text-xs text-ink/50 justify-center">
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#1e3a5f"></span> 计划体重</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#16a34a"></span> 达标</div>
-          <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm inline-block" style="background:#dc2626"></span> 未达标</div>
+      <!-- ── 每日体重目标 ── -->
+      <div class="relative overflow-hidden rounded-3xl mb-6" style="background: linear-gradient(135deg, #14532d 0%, #0d3b1f 100%);">
+        <div class="absolute top-0 right-0 w-28 h-28 rounded-bl-full opacity-10" style="background:#fff;"></div>
+        <div class="relative p-5">
+          <div class="flex items-center gap-3 mb-1">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style="background:rgba(255,255,255,0.15);">⚡</div>
+            <div>
+              <h3 class="font-display text-base font-bold text-white">每日体重目标</h3>
+              <p class="text-xs text-white/60">近7天 · 每天计划体重 vs 实际体重</p>
+            </div>
+          </div>
+          <div class="h-56 mt-3"><canvas id="chart-daily-goal"></canvas></div>
+          <div id="daily-goal-summary" class="mt-2 text-center"></div>
         </div>
       </div>
 
@@ -2458,18 +2470,21 @@
       },
 
 renderMiniCharts() {
-        this.makeMonthlyGoalChart();
-        this.makeWeeklyGoalChart();
-        this.makeDailyGoalChart();
         var p = this.profile.profile;
+        var plan = this._computePlan(p);
+        if (plan) {
+          this._drawMonthlyChart(plan);
+          this._drawWeeklyChart(plan);
+          this._drawDailyChart(plan);
+        }
         achievements.refresh(this.store, p);
         achievements.render('dash-achievements');
         this._renderWeeklyTop();
       },
 
-      // ── Shared plan calc: line from first weight to target weight by target date ──
-      _getPlanData() {
-        var p = this.profile.profile;
+      // Shared: compute linear plan from first weight record to target
+      _computePlan(p) {
+        if (!p.target || !p.targetDate) return null;
         var targetDate = new Date(p.targetDate + 'T00:00:00');
         var now = new Date();
         var targetW = Number(p.target);
@@ -2480,184 +2495,114 @@ renderMiniCharts() {
           if (r && r.weight) { startDate = new Date(allKeys[i] + 'T00:00:00'); startW = Number(r.weight); break; }
         }
         var totalDays = Math.max(1, Math.ceil((targetDate - startDate) / 86400000));
-        var totalLoss = startW - targetW;
-        var dailyRate = totalDays > 0 ? totalLoss / totalDays : 0;
-
-        // Compute plan weight for any date
-        var planWeight = function(dateStr) {
-          var d = new Date(dateStr + 'T00:00:00');
-          var days = Math.max(0, Math.ceil((d - startDate) / 86400000));
-          days = Math.min(days, totalDays);
-          return startW - dailyRate * days;
-        };
-
-        // Compute plan weight for given days offset from start
-        var planAtDay = function(dayOffset) {
-          var d = Math.min(Math.max(0, dayOffset), totalDays);
-          return startW - dailyRate * d;
-        };
-
         return {
           startDate: startDate, startW: startW,
           targetDate: targetDate, targetW: targetW,
-          totalDays: totalDays, totalLoss: totalLoss, dailyRate: dailyRate,
-          planWeight: planWeight, planAtDay: planAtDay
+          totalDays: totalDays,
+          weightAt: function(dateStr) {
+            var d = new Date(dateStr + 'T00:00:00');
+            var days = Math.max(0, Math.min(totalDays, Math.ceil((d - startDate) / 86400000)));
+            return startW - (startW - targetW) * days / totalDays;
+          }
         };
       },
 
-      makeMonthlyGoalChart() {
+      // ── 月度图表 ──
+      _drawMonthlyChart(plan) {
         var ctx = document.getElementById('chart-monthly-goal');
         if (!ctx) return;
-        if (this.charts['chart-monthly-goal']) this.charts['chart-monthly-goal'].destroy();
+        if (this.charts.monthly) this.charts.monthly.destroy();
 
-        var p = this.profile.profile;
-        if (!p.target || !p.targetDate) return;
-        var plan = this._getPlanData();
-        if (!plan) return;
-
-        // Build month buckets from startDate to targetDate
-        var months = [];
-        var d = new Date(plan.startDate);
-        d.setDate(1); // start of month
+        // Build month buckets
+        var d = new Date(plan.startDate); d.setDate(1);
+        var buckets = [];
         while (d <= plan.targetDate) {
-          months.push({ y: d.getFullYear(), m: d.getMonth() + 1, key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') });
+          var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+          buckets.push({ key: key, label: (d.getMonth() + 1) + '月', year: d.getFullYear(), month: d.getMonth() });
           d.setMonth(d.getMonth() + 1);
         }
 
-        // Collect actual weights per month
-        var allEntries = this.store.all().sort(function(a, b) { return a[0].localeCompare(b[0]); });
-        var monthData = {};
-        months.forEach(function(mo) { monthData[mo.key] = []; });
-        allEntries.forEach(function(a) {
-          var dy = parseInt(a[0].slice(0, 4)), dm = parseInt(a[0].slice(5, 7));
-          var key = dy + '-' + String(dm).padStart(2, '0');
-          if (monthData[key] != null && a[1].weight) {
-            monthData[key].push(Number(a[1].weight));
-          }
+        // Collect actual weights per bucket
+        var all = this.store.all().sort(function(a, b) { return a[0].localeCompare(b[0]); });
+        var byMonth = {};
+        buckets.forEach(function(b) { byMonth[b.key] = []; });
+        all.forEach(function(a) {
+          var k = a[0].slice(0, 7);
+          if (byMonth[k] != null && a[1].weight) byMonth[k].push(Number(a[1].weight));
         });
 
-        var labels = [];
-        var planAvgs = [];
-        var actualAvgs = [];
-        months.forEach(function(mo) {
-          labels.push(mo.m + '月');
-          // Plan: average of plan values for days 1 and 15 of this month
-          var midDay = plan.startW - plan.dailyRate * Math.max(0, Math.ceil((new Date(mo.y, mo.m - 1, 15) - plan.startDate) / 86400000));
-          // Better: plan weight at midpoint of month
-          var d1 = new Date(mo.y, mo.m - 1, 1);
-          var d15 = new Date(mo.y, mo.m - 1, 15);
-          var plan1 = plan.planWeight(d1.toISOString().slice(0, 10));
-          var plan15 = plan.planWeight(d15.toISOString().slice(0, 10));
-          planAvgs.push(Math.round(((plan1 + plan15) / 2) * 10) / 10);
-
-          var w = monthData[mo.key];
-          if (w.length > 0) {
-            var avg = w.reduce(function(s, v) { return s + v; }, 0) / w.length;
-            actualAvgs.push(Math.round(avg * 10) / 10);
-          } else {
-            actualAvgs.push(null);
-          }
+        var labels = [], planVals = [], actualVals = [];
+        buckets.forEach(function(b) {
+          labels.push(b.label);
+          planVals.push(plan.weightAt(b.year + '-' + String(b.month + 1).padStart(2, '0') + '-15'));
+          var ws = byMonth[b.key];
+          actualVals.push(ws.length ? Math.round(ws.reduce(function(s, v) { return s + v; }, 0) / ws.length * 10) / 10 : null);
         });
 
-        // Digital summary: latest month gap
-        var sumEl = document.getElementById('monthly-goal-summary');
-        if (sumEl) {
-          var lastActual = null, lastPlan = null;
-          for (var i = actualAvgs.length - 1; i >= 0; i--) {
-            if (actualAvgs[i] != null) { lastActual = actualAvgs[i]; lastPlan = planAvgs[i]; break; }
+        // Summary badge
+        var el = document.getElementById('monthly-goal-summary');
+        if (el) {
+          var lastA = null, lastP = null;
+          for (var i = actualVals.length - 1; i >= 0; i--) {
+            if (actualVals[i] != null) { lastA = actualVals[i]; lastP = planVals[i]; break; }
           }
-          if (lastActual != null) {
-            var diff = lastActual - lastPlan;
-            var abs = Math.abs(diff).toFixed(1);
+          if (lastA != null) {
+            var diff = lastA - lastP, abs = Math.abs(diff).toFixed(1);
             if (diff > 0.05) {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">落后 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本月均值高于计划目标</span>';
+              el.innerHTML = '<div style="display:inline-block;background:rgba(239,68,68,0.2);color:#fecaca;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">落后 ' + abs + ' kg</div>';
             } else if (diff < -0.05) {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">超额 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本月均值低于计划目标</span>';
+              el.innerHTML = '<div style="display:inline-block;background:rgba(34,197,94,0.2);color:#bbf7d0;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">超额 ' + abs + ' kg</div>';
             } else {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">本月均值与计划一致</span>';
+              el.innerHTML = '<div style="display:inline-block;background:rgba(255,255,255,0.1);color:#e2e8f0;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">持平</div>';
             }
           } else {
-            sumEl.innerHTML = '<span class="text-sm text-ink/40">本月暂无记录</span>';
+            el.innerHTML = '<span style="color:rgba(255,255,255,0.4);font-size:14px;">暂无记录</span>';
           }
         }
 
-        this.charts['chart-monthly-goal'] = new Chart(ctx, {
+        this.charts.monthly = new Chart(ctx, {
           type: 'bar',
           data: {
             labels: labels,
             datasets: [
-              {
-                label: '计划目标', type: 'scatter',
-                data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
-                borderColor: '#f59e0b', backgroundColor: '#f59e0b',
-                pointRadius: 7, pointHoverRadius: 9, pointStyle: 'rectRot',
-                showLine: true, borderWidth: 3, borderDash: [8, 5],
-                fill: false, order: 1
-              },
-              {
-                label: '实际月均', type: 'line',
-                data: planAvgs, borderColor: '#1e3a5f', borderWidth: 2.5,
-                pointRadius: 0, fill: false, tension: 0, order: 2,
-                borderDash: [4, 3]
-              },
-              {
-                label: '实际月均',
-                data: actualAvgs,
-                backgroundColor: actualAvgs.map(function(v, idx) {
-                  if (v == null) return '#cbd5e1';
-                  return v <= planAvgs[idx] + 0.05 ? '#16a34a' : '#dc2626';
+              { label: '计划目标', data: planVals, type: 'line',
+                borderColor: '#fbbf24', backgroundColor: 'transparent',
+                borderWidth: 2.5, borderDash: [8, 4], pointRadius: 6,
+                pointBackgroundColor: '#fbbf24', pointBorderColor: '#1a2d4a', pointBorderWidth: 2,
+                tension: 0, fill: false, order: 1 },
+              { label: '实际月均', data: actualVals,
+                backgroundColor: actualVals.map(function(v, idx) {
+                  if (v == null) return 'rgba(255,255,255,0.1)';
+                  return v <= planVals[idx] + 0.05 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)';
                 }),
-                borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.7, order: 3
-              }
+                borderColor: actualVals.map(function(v, idx) {
+                  if (v == null) return 'transparent';
+                  return v <= planVals[idx] + 0.05 ? '#22c55e' : '#ef4444';
+                }),
+                borderWidth: 1, borderRadius: 6, barPercentage: 0.6, categoryPercentage: 0.65, order: 2 }
             ]
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                callbacks: {
-                  label: function(item) {
-                    if (item.dataset.label === '计划目标') return '月度计划: ' + item.raw.y.toFixed(1) + ' kg';
-                    if (item.dataset.label === '实际月均') {
-                      if (item.raw == null) return '本月暂无记录';
-                      var idx = item.dataIndex;
-                      var diff = item.raw - planAvgs[idx];
-                      var tag = diff > 0.05 ? ' (落后' + diff.toFixed(1) + 'kg)' : diff < -0.05 ? ' (超额' + Math.abs(diff).toFixed(1) + 'kg)' : ' (持平)';
-                      return '月均: ' + item.raw.toFixed(1) + ' kg' + tag;
-                    }
-                    return '';
-                  }
-                }
-              }
-            },
+            plugins: { legend: { display: false } },
             scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#475569' } },
-              y: {
-                grid: { color: '#e2e8f0', lineWidth: 0.5 },
-                ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' }
-              }
+              x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 10, weight: '600' } } },
+              y: { grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 9 }, callback: function(v) { return v.toFixed(1); } } }
             }
           }
         });
       },
 
-      makeWeeklyGoalChart() {
+      // ── 每周图表 ──
+      _drawWeeklyChart(plan) {
         var ctx = document.getElementById('chart-weekly-goal');
         if (!ctx) return;
-        if (this.charts['chart-weekly-goal']) this.charts['chart-weekly-goal'].destroy();
+        if (this.charts.weekly) this.charts.weekly.destroy();
 
-        var p = this.profile.profile;
-        if (!p.target || !p.targetDate) return;
-        var plan = this._getPlanData();
-        if (!plan) return;
-
-        // Group all records by ISO week
         function isoWeek(str) {
           var d = new Date(str + 'T00:00:00');
-          var dn = d.getDay() || 7;
-          d.setDate(d.getDate() + 4 - dn);
+          var dn = d.getDay() || 7; d.setDate(d.getDate() + 4 - dn);
           var ys = new Date(d.getFullYear(), 0, 1);
           return d.getFullYear() + '-W' + String(Math.ceil(((d - ys) / 86400000 + 1) / 7)).padStart(2, '0');
         }
@@ -2672,157 +2617,54 @@ renderMiniCharts() {
         });
 
         var wSorted = Object.entries(weeks).sort(function(a, b) { return a[0].localeCompare(b[0]); }).slice(-4);
-
-        var labels = [], planAvgs = [], actualAvgs = [];
-        wSorted.forEach(function(entry) {
-          var data = entry[1];
-          labels.push(entry[0].split('-W')[1]);
-
-          // Weekly plan weight at mid-week
-          var midDateStr = data.dates[Math.floor(data.dates.length / 2)];
-          planAvgs.push(plan.planWeight(midDateStr));
-
-          // Weekly actual average
-          if (data.weights.length > 0) {
-            var avg = data.weights.reduce(function(s, v) { return s + v; }, 0) / data.weights.length;
-            actualAvgs.push(Math.round(avg * 10) / 10);
-          } else {
-            actualAvgs.push(null);
-          }
+        var labels = [], planVals = [], actualVals = [];
+        wSorted.forEach(function(e) {
+          labels.push('W' + e[0].split('-W')[1]);
+          var d = e[1];
+          planVals.push(plan.weightAt(d.dates[Math.floor(d.dates.length / 2)]));
+          actualVals.push(d.weights.length ? Math.round(d.weights.reduce(function(s, v) { return s + v; }, 0) / d.weights.length * 10) / 10 : null);
         });
 
-        // Digital summary
-        var sumEl = document.getElementById('weekly-goal-summary');
-        if (sumEl) {
+        var el = document.getElementById('weekly-goal-summary');
+        if (el) {
           var lastA = null, lastP = null;
-          for (var i = actualAvgs.length - 1; i >= 0; i--) {
-            if (actualAvgs[i] != null) { lastA = actualAvgs[i]; lastP = planAvgs[i]; break; }
+          for (var i = actualVals.length - 1; i >= 0; i--) {
+            if (actualVals[i] != null) { lastA = actualVals[i]; lastP = planVals[i]; break; }
           }
           if (lastA != null) {
-            var diff = lastA - lastP;
-            var abs = Math.abs(diff).toFixed(1);
+            var diff = lastA - lastP, abs = Math.abs(diff).toFixed(1);
             if (diff > 0.05) {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">落后 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本周均值高于计划</span>';
+              el.innerHTML = '<div style="display:inline-block;background:rgba(239,68,68,0.2);color:#fecaca;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">落后 ' + abs + ' kg</div>';
             } else if (diff < -0.05) {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">超额 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">本周均值低于计划</span>';
+              el.innerHTML = '<div style="display:inline-block;background:rgba(34,197,94,0.2);color:#bbf7d0;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">超额 ' + abs + ' kg</div>';
             } else {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">本周均值与计划一致</span>';
+              el.innerHTML = '<div style="display:inline-block;background:rgba(255,255,255,0.1);color:#e2e8f0;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">持平</div>';
             }
           } else {
-            sumEl.innerHTML = '<span class="text-sm text-ink/40">本周暂无记录</span>';
+            el.innerHTML = '<span style="color:rgba(255,255,255,0.4);font-size:14px;">暂无记录</span>';
           }
         }
 
-        this.charts['chart-weekly-goal'] = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: labels.map(function(l) { return 'W' + l; }),
-            datasets: [
-              {
-                label: '周计划', type: 'scatter',
-                data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
-                borderColor: '#f59e0b', backgroundColor: '#f59e0b',
-                pointRadius: 6, pointHoverRadius: 8, pointStyle: 'rectRot',
-                showLine: true, borderWidth: 2.5, borderDash: [6, 4],
-                fill: false, order: 1
-              },
-              {
-                label: '实际周均', type: 'scatter',
-                data: planAvgs.map(function(v, idx) { return {x: idx, y: v}; }),
-                borderColor: '#1e3a5f', borderWidth: 2, pointRadius: 0,
-                fill: false, tension: 0, order: 2, borderDash: [3, 2]
-              },
-              {
-                label: '实际周均',
-                data: actualAvgs,
-                backgroundColor: actualAvgs.map(function(v, idx) {
-                  if (v == null) return '#cbd5e1';
-                  return v <= planAvgs[idx] + 0.05 ? '#16a34a' : '#dc2626';
-                }),
-                borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.6, order: 3
-              }
-            ]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' }, color: '#475569' } },
-              y: {
-                grid: { color: '#e2e8f0', lineWidth: 0.5 },
-                ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' }
-              }
-            }
-          }
-        });
-      },
-
-      makeDailyGoalChart() {
-        var ctx = document.getElementById('chart-daily-goal');
-        if (!ctx) return;
-        if (this.charts['chart-daily-goal']) this.charts['chart-daily-goal'].destroy();
-
-        var p = this.profile.profile;
-        if (!p.target || !p.targetDate) return;
-        var plan = this._getPlanData();
-        if (!plan) return;
-
-        var labels = [];
-        var planVals = [];
-        var actualVals = [];
-        var now = new Date();
-
-        for (var i = 6; i >= 0; i--) {
-          var d = new Date(); d.setDate(d.getDate() - i);
-          var dateStr = fmtDate(d);
-          labels.push(dateStr.slice(5));
-          planVals.push(plan.planWeight(dateStr));
-          var rec = this.store.get(dateStr);
-          actualVals.push(rec && rec.weight ? Number(rec.weight) : null);
-        }
-
-        // Digital summary
-        var sumEl = document.getElementById('daily-goal-summary');
-        if (sumEl) {
-          var todayA = actualVals[6], todayP = planVals[6];
-          if (todayA != null) {
-            var diff = todayA - todayP;
-            var abs = Math.abs(diff).toFixed(1);
-            if (diff > 0.05) {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-red-500">落后 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">今日体重高于计划</span>';
-            } else if (diff < -0.05) {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-green-600">超额 ' + abs + ' kg</span><br><span class="text-xs text-ink/50">今日体重低于计划</span>';
-            } else {
-              sumEl.innerHTML = '<span class="font-number text-2xl font-bold text-forest">持平</span><br><span class="text-xs text-ink/50">今日体重与计划一致</span>';
-            }
-          } else {
-            sumEl.innerHTML = '<span class="text-sm text-ink/40">今日暂无体重数据</span>';
-          }
-        }
-
-        this.charts['chart-daily-goal'] = new Chart(ctx, {
+        this.charts.weekly = new Chart(ctx, {
           type: 'bar',
           data: {
             labels: labels,
             datasets: [
-              {
-                label: '计划', type: 'scatter',
-                data: planVals.map(function(v, idx) { return {x: idx, y: v}; }),
-                borderColor: '#1e3a5f', backgroundColor: '#1e3a5f',
-                pointRadius: 5, pointHoverRadius: 7, pointStyle: 'rectRot',
-                showLine: true, borderWidth: 2.5, borderDash: [6, 4],
-                fill: false, order: 1
-              },
-              {
-                label: '实际体重',
-                data: actualVals,
+              { label: '周计划', data: planVals, type: 'line',
+                borderColor: '#fbbf24', backgroundColor: 'transparent',
+                borderWidth: 2.5, borderDash: [6, 4], pointRadius: 6,
+                pointBackgroundColor: '#fbbf24', pointBorderColor: '#5c1d08', pointBorderWidth: 2,
+                tension: 0, fill: false, order: 1 },
+              { label: '实际周均', data: actualVals,
                 backgroundColor: actualVals.map(function(v, idx) {
-                  if (v == null) return '#cbd5e1';
-                  return v <= planVals[idx] + 0.05 ? '#16a34a' : '#dc2626';
+                  if (v == null) return 'rgba(255,255,255,0.1)';
+                  return v <= planVals[idx] + 0.05 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)';
                 }),
-                borderRadius: 4, barPercentage: 0.65, categoryPercentage: 0.8, order: 2
-              }
+                borderColor: actualVals.map(function(v, idx) {
+                  if (v == null) return 'transparent';
+                  return v <= planVals[idx] + 0.05 ? '#22c55e' : '#ef4444';
+                }),
+                borderWidth: 1, borderRadius: 6, barPercentage: 0.55, categoryPercentage: 0.6, order: 2 }
             ]
           },
           options: {
@@ -2830,17 +2672,79 @@ renderMiniCharts() {
             interaction: { mode: 'index', intersect: false },
             plugins: { legend: { display: false } },
             scales: {
-              x: { grid: { display: false }, ticks: { font: { size: 9 }, color: '#64748b' } },
-              y: {
-                grid: { color: '#e2e8f0', lineWidth: 0.5 },
-                ticks: { callback: function(v) { return v.toFixed(1); }, font: { size: 9 }, color: '#64748b' }
-              }
+              x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 12, weight: '700' } } },
+              y: { grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 9 }, callback: function(v) { return v.toFixed(1); } } }
             }
           }
         });
       },
 
-      makeDeficitChart(canvasId, labels, deficits) {
+      // ── 每日图表 ──
+      _drawDailyChart(plan) {
+        var ctx = document.getElementById('chart-daily-goal');
+        if (!ctx) return;
+        if (this.charts.daily) this.charts.daily.destroy();
+
+        var labels = [], planVals = [], actualVals = [];
+        for (var i = 6; i >= 0; i--) {
+          var d = new Date(); d.setDate(d.getDate() - i);
+          var ds = fmtDate(d);
+          labels.push(ds.slice(5));
+          planVals.push(plan.weightAt(ds));
+          var rec = this.store.get(ds);
+          actualVals.push(rec && rec.weight ? Number(rec.weight) : null);
+        }
+
+        var el = document.getElementById('daily-goal-summary');
+        if (el) {
+          var todayA = actualVals[6], todayP = planVals[6];
+          if (todayA != null) {
+            var diff = todayA - todayP, abs = Math.abs(diff).toFixed(1);
+            if (diff > 0.05) {
+              el.innerHTML = '<div style="display:inline-block;background:rgba(239,68,68,0.2);color:#fecaca;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">落后 ' + abs + ' kg</div>';
+            } else if (diff < -0.05) {
+              el.innerHTML = '<div style="display:inline-block;background:rgba(34,197,94,0.2);color:#bbf7d0;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">超额 ' + abs + ' kg</div>';
+            } else {
+              el.innerHTML = '<div style="display:inline-block;background:rgba(255,255,255,0.1);color:#e2e8f0;border-radius:12px;padding:6px 18px;font-size:22px;font-weight:700;font-family:Outfit,sans-serif;">持平</div>';
+            }
+          } else {
+            el.innerHTML = '<span style="color:rgba(255,255,255,0.4);font-size:14px;">今日暂无体重记录</span>';
+          }
+        }
+
+        this.charts.daily = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: '计划', data: planVals, type: 'line',
+                borderColor: '#fbbf24', backgroundColor: 'transparent',
+                borderWidth: 2.5, borderDash: [6, 4], pointRadius: 5,
+                pointBackgroundColor: '#fbbf24', pointBorderColor: '#0d3b1f', pointBorderWidth: 2,
+                tension: 0, fill: false, order: 1 },
+              { label: '实际', data: actualVals,
+                backgroundColor: actualVals.map(function(v, idx) {
+                  if (v == null) return 'rgba(255,255,255,0.1)';
+                  return v <= planVals[idx] + 0.05 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)';
+                }),
+                borderColor: actualVals.map(function(v, idx) {
+                  if (v == null) return 'transparent';
+                  return v <= planVals[idx] + 0.05 ? '#22c55e' : '#ef4444';
+                }),
+                borderWidth: 1, borderRadius: 6, barPercentage: 0.65, categoryPercentage: 0.75, order: 2 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.6)', font: { size: 9 } } },
+              y: { grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 9 }, callback: function(v) { return v.toFixed(1); } } }
+            }
+          }
+        });
+      },makeDeficitChart(canvasId, labels, deficits) {
         const ctx = document.getElementById(canvasId).getContext('2d');
         if (this.charts[canvasId]) this.charts[canvasId].destroy();
         const bgColors = deficits.map(v => v >= 0 ? '#2D5A45' : '#E07A5F');
